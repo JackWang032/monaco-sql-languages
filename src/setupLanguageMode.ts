@@ -34,6 +34,15 @@ export function setupLanguageMode<T extends BaseSQLWorker>(
 				)
 			);
 		}
+
+		if (modeConfiguration.inlineCompletionItems.enable) {
+			providers.push(
+				languages.registerInlineCompletionsProvider(
+					languageId,
+					new languageFeatures.InlineCompletionAdapter(worker, defaults)
+				)
+			);
+		}
 	}
 
 	registerProviders();

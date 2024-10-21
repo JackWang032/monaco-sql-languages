@@ -7,6 +7,18 @@ export interface ICreateData {
 	languageId: string;
 }
 
+export type SnippetToken = {
+	line: number;
+	column: number;
+	text: string | null;
+	start: number;
+	stop: number;
+	type: number;
+	isWhiteSpace: boolean;
+	isIdentify: boolean;
+	isStringLiteral: boolean;
+};
+
 export abstract class BaseSQLWorker {
 	protected abstract _ctx: worker.IWorkerContext;
 	protected abstract parser: BasicSQL;
@@ -45,7 +57,11 @@ export abstract class BaseSQLWorker {
 	async doCompletionWithEntities(
 		code: string,
 		position: Position
-	): Promise<[Suggestions | null, EntityContext[] | null]> {
+	): Promise<{
+		suggestions: Suggestions | null;
+		allEntities: EntityContext[] | null;
+		context?: any;
+	}> {
 		code = code || this.getTextDocument();
 		if (code) {
 			const suggestions = this.parser.getSuggestionAtCaretPosition(code, position);
@@ -53,9 +69,37 @@ export abstract class BaseSQLWorker {
 			if (suggestions?.syntax?.length) {
 				allEntities = this.parser.getAllEntities(code, position);
 			}
-			return Promise.resolve([suggestions, allEntities]);
+			const contextType = this.parser.getContextTypeAtCaretPosition(code, position);
+
+			return Promise.resolve({
+				suggestions,
+				allEntities,
+				context: contextType
+			});
 		}
-		return Promise.resolve([null, null]);
+
+		return Promise.resolve({
+			suggestions: null,
+			allEntities: null,
+			context: null
+		});
+	}
+
+	async getAllTokens(code: string): Promise<SnippetToken[]> {
+		code = code || this.getTextDocument();
+		const tokens: SnippetToken[] = this.parser.getAllTokens(code).map((item) => ({
+			line: item.line,
+			column: item.column,
+			text: item.text,
+			start: item.start,
+			stop: item.stop,
+			type: item.type,
+			// todo replace
+			isWhiteSpace: item.type === 434,
+			isIdentify: item.type === 432,
+			isStringLiteral: item.type === 426
+		}));
+		return Promise.resolve(tokens);
 	}
 
 	async getAllEntities(code: string, position?: Position): Promise<EntityContext[] | null> {

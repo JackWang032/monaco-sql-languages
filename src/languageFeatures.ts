@@ -9,9 +9,9 @@ import {
 	CancellationToken
 } from './fillers/monaco-editor-core';
 import { debounce } from './common/utils';
-import { BaseSQLWorker } from './baseSQLWorker';
+import { BaseSQLWorker, SnippetToken } from './baseSQLWorker';
 import type { ParseError } from 'dt-sql-parser';
-import type { LanguageServiceDefaults } from './monaco.contribution';
+import type { CompletionSnippet, LanguageServiceDefaults } from './monaco.contribution';
 
 export interface WorkerAccessor<T extends BaseSQLWorker> {
 	(...uris: Uri[]): Promise<T>;
@@ -130,6 +130,25 @@ function toDiagnostics(_resource: Uri, diag: ParseError): editor.IMarkerData {
 	};
 }
 
+function mininumCode(model: editor.IModel, position: Position) {
+	const codeBeforePosition = model.getValueInRange(
+		new Range(0, 0, position.lineNumber, position.column)
+	);
+	const separatorIndex = codeBeforePosition.lastIndexOf(';');
+	return separatorIndex === -1
+		? codeBeforePosition
+		: codeBeforePosition.slice(separatorIndex + 1);
+}
+
+// async function getSQLSnippets(languageId: string) {
+// 	switch (languageId) {
+// 		case 'hivesql':
+// 			return import('./languages/hive/hive.snippet');
+// 		default:
+// 			return Promise.resolve({snippets: []})
+//     }
+// }
+
 export class CompletionAdapter<T extends BaseSQLWorker>
 	implements languages.CompletionItemProvider
 {
@@ -159,13 +178,22 @@ export class CompletionAdapter<T extends BaseSQLWorker>
 				}
 				return worker.doCompletionWithEntities(code, position);
 			})
-			.then(([suggestions, allEntities]) => {
+			.then(async ({ suggestions, allEntities, context: sqlContext }) => {
+				let snippets: CompletionSnippet[] = [];
+				if (sqlContext?.newStatement) {
+					snippets = this._defaults.completionSnippets.map((item) => ({
+						...item,
+						insertText: typeof item.body === 'string' ? item.body : item.body.join('\n')
+					}));
+				}
+
 				return this._defaults.completionService(
 					model,
 					position,
 					context,
 					suggestions,
-					allEntities
+					allEntities,
+					snippets
 				);
 			})
 			.then((completions) => {
@@ -196,4 +224,58 @@ export class CompletionAdapter<T extends BaseSQLWorker>
 				};
 			});
 	}
+}
+
+export class InlineCompletionAdapter<T extends BaseSQLWorker>
+	implements languages.InlineCompletionsProvider
+{
+	constructor(
+		private readonly _worker: WorkerAccessor<T>,
+		private readonly _defaults: LanguageServiceDefaults
+	) {
+		console.log('模板列表', _defaults.inlineCompletionSnippets);
+	}
+
+	private allSnippetsTokens: { tokens: SnippetToken[]; snippetText: string }[] = [];
+
+	provideInlineCompletions(
+		model: editor.ITextModel,
+		position: Position
+	): languages.ProviderResult<languages.InlineCompletions<languages.InlineCompletion>> {
+		const resource = model.uri;
+		return this._worker(resource)
+			.then(async (worker) => {
+				let code = mininumCode(model, position);
+				if (typeof this._defaults.preprocessCode === 'function') {
+					code = this._defaults.preprocessCode(code);
+				}
+
+				if (!this.allSnippetsTokens?.length) {
+					const allSnippetsTokens = [];
+					for (const snippet of this._defaults.inlineCompletionSnippets) {
+						const tokens = await worker.getAllTokens(snippet);
+						allSnippetsTokens.push({ tokens, snippetText: snippet });
+					}
+					this.allSnippetsTokens = allSnippetsTokens;
+				}
+
+				const currentCodeTokens = await worker.getAllTokens(code);
+
+				return {
+					code,
+					codeTokens: currentCodeTokens,
+					allSnippetsTokens: this.allSnippetsTokens
+				};
+			})
+			.then(({ code, codeTokens, allSnippetsTokens }) => {
+				return this._defaults.inlineCompletionService(
+					model,
+					position,
+					code,
+					codeTokens,
+					allSnippetsTokens
+				) as any;
+			});
+	}
+	freeInlineCompletions(_completions: any) {}
 }

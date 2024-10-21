@@ -4,7 +4,8 @@ import {
 	LanguageServiceDefaultsImpl,
 	modeConfigurationDefault,
 	ModeConfiguration,
-	CompletionOptions
+	CompletionOptions,
+	InlineCompletionOptions
 } from './monaco.contribution';
 import { languages, IDisposable } from './fillers/monaco-editor-core';
 import { LanguageIdEnum } from './common/constants';
@@ -15,6 +16,8 @@ export interface FeatureConfiguration {
 	 * Defaults to true.
 	 */
 	completionItems?: boolean | Partial<CompletionOptions>;
+
+	inlineCompletionItems?: boolean | Partial<InlineCompletionOptions>;
 	/**
 	 * Whether the built-in diagnostic provider is .
 	 * Defaults to true.
@@ -97,12 +100,25 @@ function processConfiguration(
 			: defaults?.modeConfiguration.completionItems.enable ??
 			  modeConfigurationDefault.completionItems.enable;
 
+	const inlineCompletionEnable =
+		typeof configuration.inlineCompletionItems === 'boolean'
+			? configuration.inlineCompletionItems
+			: defaults?.modeConfiguration.inlineCompletionItems.enable ??
+			  modeConfigurationDefault.inlineCompletionItems.enable;
+
 	const completionService =
 		typeof configuration.completionItems !== 'boolean' &&
 		typeof configuration.completionItems?.completionService === 'function'
 			? configuration.completionItems?.completionService
 			: defaults?.modeConfiguration.completionItems.completionService ??
 			  modeConfigurationDefault.completionItems.completionService;
+
+	const inlineCompletionService =
+		typeof configuration.inlineCompletionItems !== 'boolean' &&
+		typeof configuration.inlineCompletionItems?.completionService === 'function'
+			? configuration.inlineCompletionItems?.completionService
+			: defaults?.modeConfiguration.inlineCompletionItems.completionService ??
+			  modeConfigurationDefault.inlineCompletionItems.completionService;
 
 	const triggerCharacters =
 		typeof configuration.completionItems !== 'boolean' &&
@@ -111,12 +127,27 @@ function processConfiguration(
 			: defaults?.modeConfiguration.completionItems.triggerCharacters ??
 			  modeConfigurationDefault.completionItems.triggerCharacters;
 
+	const snippets =
+		typeof configuration.completionItems !== 'boolean'
+			? configuration.completionItems?.snippets ?? []
+			: [];
+	const inlineSnippets =
+		typeof configuration.inlineCompletionItems !== 'boolean'
+			? configuration.inlineCompletionItems?.inlineSnippets ?? []
+			: [];
+
 	return {
 		diagnostics,
 		completionItems: {
 			enable: completionEnable,
 			completionService,
-			triggerCharacters
+			triggerCharacters,
+			snippets
+		},
+		inlineCompletionItems: {
+			enable: inlineCompletionEnable,
+			completionService: inlineCompletionService,
+			inlineSnippets
 		}
 	};
 }
