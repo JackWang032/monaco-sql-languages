@@ -3,10 +3,16 @@ import { Float } from '@dtinsight/molecule/esm/model';
 import { IExtension } from '@dtinsight/molecule/esm/model/extension';
 import Sidebar from './sidebar';
 import { defaultEditorTab, defaultLanguageStatusItem } from './common';
+import AICompletionPanel from './aiCompletionPanel';
 
 export const defaultParseTreePanel = {
 	id: 'ParseTreePanel',
 	name: 'Parse Tree Visualizer'
+};
+
+export const defaultAICompletionPanel = {
+	id: 'AICompletionPanel',
+	name: 'AI 补全设置'
 };
 
 export const ExtendsWorkbench: IExtension = {
@@ -49,15 +55,32 @@ export const ExtendsWorkbench: IExtension = {
 
 		molecule.panel.add(defaultParseTreePanel);
 
-		molecule.activityBar.onClick((id) => {
-			if (id === githubPageActivityBarItem.id) {
-				window.location.href = 'https://github.com/DTStack/monaco-sql-languages';
+		// 设置AuxiliaryBar配置
+		// 初始化AuxiliaryBar，使用tabs模式
+		molecule.auxiliaryBar.setMode('tabs');
+
+		// 添加AI补全设置选项卡
+		const aiCompletionTab = {
+			key: 'aiCompletion',
+			title: 'AI 补全设置'
+		};
+		molecule.auxiliaryBar.addAuxiliaryBar([aiCompletionTab]);
+
+		// 监听选项卡点击事件
+		molecule.auxiliaryBar.onTabClick(() => {
+			const tab = molecule.auxiliaryBar.getCurrentTab();
+			if (tab && tab.key === aiCompletionTab.key) {
+				// 设置AuxiliaryBar内容
+				molecule.auxiliaryBar.setChildren(<AICompletionPanel />);
 			}
+
+			molecule.layout.setAuxiliaryBar(!tab);
 		});
 
 		molecule.editor.open(defaultEditorTab);
 
 		molecule.statusBar.add(defaultLanguageStatusItem, Float.right);
 	},
+
 	dispose() {}
 };

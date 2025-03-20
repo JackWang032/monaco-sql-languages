@@ -28,6 +28,7 @@ const getSyntaxCompletionItems = async (
 	syntax: Suggestions['syntax'],
 	entities: EntityContext[] | null
 ): Promise<ICompletionItem[]> => {
+
 	const haveCatalog = haveCatalogSQLType(languageId);
 	const getDBOrSchema = namedSchemaSQLType(languageId) ? getSchemas : getDataBases;
 
@@ -348,32 +349,49 @@ export const completionService: CompletionService = async function (
 	if (!suggestions) {
 		return Promise.resolve([]);
 	}
-	const languageId = model.getLanguageId();
 
-	const { keywords, syntax } = suggestions;
-	console.log('syntax', syntax);
-	console.log('entities', entities);
+	try {
+		const languageId = model.getLanguageId();
 
-	const keywordsCompletionItems: ICompletionItem[] = keywords.map((kw) => ({
-		label: kw,
-		kind: languages.CompletionItemKind.Keyword,
-		detail: '关键字',
-		sortText: '2' + kw
-	}));
+		const { keywords, syntax } = suggestions;
+		console.log('syntax', syntax);
+		console.log('entities', entities);
 
-	const syntaxCompletionItems = await getSyntaxCompletionItems(languageId, syntax, entities);
+		const keywordsCompletionItems: ICompletionItem[] = keywords.map((kw) => ({
+			label: kw,
+			kind: languages.CompletionItemKind.Keyword,
+			detail: '关键字',
+			sortText: '2' + kw
+		}));
 
-	const snippetCompletionItems: ICompletionItem[] =
-		snippets?.map((item) => ({
-			label: item.label || item.prefix,
-			kind: languages.CompletionItemKind.Snippet,
-			filterText: item.prefix,
-			insertText: item.insertText,
-			insertTextRules: languages.CompletionItemInsertTextRule.InsertAsSnippet,
-			sortText: '3' + item.prefix,
-			detail: item.description !== undefined ? item.description : 'SQL模板',
-			documentation: item.insertText
-		})) || [];
+		const syntaxCompletionItems = await getSyntaxCompletionItems(languageId, syntax, entities);
 
-	return [...syntaxCompletionItems, ...keywordsCompletionItems, ...snippetCompletionItems];
+		const snippetCompletionItems: ICompletionItem[] =
+			snippets?.map((item) => ({
+				label: item.label || item.prefix,
+				kind: languages.CompletionItemKind.Snippet,
+				filterText: item.prefix,
+				insertText: item.insertText,
+				insertTextRules: languages.CompletionItemInsertTextRule.InsertAsSnippet,
+				sortText: '3' + item.prefix,
+				detail: item.description !== undefined ? item.description : 'SQL模板',
+				documentation: item.insertText
+			})) || [];
+
+		// 返回所有普通补全项，但不包括AI补全
+		// AI补全现在完全由行内补全处理，不在completionService中处理
+		return [...syntaxCompletionItems, ...keywordsCompletionItems, ...snippetCompletionItems];
+	} catch (error) {
+		console.error('[completion service error]', error);
+
+		// 发生错误时，尝试返回最基本的补全项
+		const keywords = suggestions?.keywords || [];
+		const keywordsCompletionItems: ICompletionItem[] = keywords.map((kw) => ({
+			label: kw,
+			kind: languages.CompletionItemKind.Keyword,
+			detail: '关键字',
+			sortText: '2' + kw
+		}));
+		return keywordsCompletionItems;
+	}
 };
