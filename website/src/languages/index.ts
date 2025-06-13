@@ -129,10 +129,8 @@ setupLanguageFeatures(LanguageIdEnum.IMPALA, {
 	preprocessCode
 });
 
-
 // 为所有SQL方言注册行内补全提供者
 const registerInlineCompletionsForLanguage = (languageId: string) => {
-
 	// 用于跟踪输入变化
 	let lastPosition = { lineNumber: 0, column: 0 };
 	let lastModelVersion = 0;
@@ -142,7 +140,8 @@ const registerInlineCompletionsForLanguage = (languageId: string) => {
 			// 检查输入是否有实质性变化
 			const currentModelVersion = model.getVersionId();
 			const positionChanged =
-				position.lineNumber !== lastPosition.lineNumber || position.column !== lastPosition.column;
+				position.lineNumber !== lastPosition.lineNumber ||
+				position.column !== lastPosition.column;
 
 			// 只移动光标跳过请求
 			if (currentModelVersion === lastModelVersion && !positionChanged) {
@@ -172,7 +171,9 @@ const registerInlineCompletionsForLanguage = (languageId: string) => {
 				// 获取当前代码和光标位置
 				const code = model.getValue();
 				const offset = model.getOffsetAt(position);
-				const linePrefix = model.getLineContent(position.lineNumber).substring(0, position.column - 1);
+				const linePrefix = model
+					.getLineContent(position.lineNumber)
+					.substring(0, position.column - 1);
 
 				const aiCompletionItems = await getAICompletions(languageId, code, offset, token);
 
@@ -181,20 +182,20 @@ const registerInlineCompletionsForLanguage = (languageId: string) => {
 				}
 
 				// 转换为行内补全格式
-				const items = aiCompletionItems.map(completion => ({
+				const items = aiCompletionItems.map((completion) => ({
 					text: linePrefix + completion.text,
 					range: {
 						startLineNumber: position.lineNumber,
 						startColumn: 1,
 						endLineNumber: position.lineNumber,
 						endColumn: position.column
-					},
+					}
 				}));
 
 				console.log('实际补全结果：', items);
 
 				return {
-					items,
+					items
 				};
 			} catch (error) {
 				console.error(`获取${languageId}行内补全失败:`, error);
@@ -208,7 +209,7 @@ const registerInlineCompletionsForLanguage = (languageId: string) => {
 };
 
 // 为所有SQL方言注册行内补全
-Object.values(LanguageIdEnum).forEach(languageId => {
+Object.values(LanguageIdEnum).forEach((languageId) => {
 	registerInlineCompletionsForLanguage(languageId);
 });
 

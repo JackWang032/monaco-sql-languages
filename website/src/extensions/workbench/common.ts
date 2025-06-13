@@ -1,7 +1,7 @@
 export const languages = [
+	'HiveSQL',
 	'FlinkSQL',
 	'SparkSQL',
-	'HiveSQL',
 	'MySQL',
 	'PGSQL',
 	'TrinoSQL',

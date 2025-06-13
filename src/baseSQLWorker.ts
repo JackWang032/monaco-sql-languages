@@ -49,12 +49,12 @@ export abstract class BaseSQLWorker {
 			if (suggestions?.syntax?.length) {
 				allEntities = this.parser.getAllEntities(code, position);
 			}
-			const semanticContext = this.parser.getSemanticContextAtCaretPosition(code, position);
+			// const semanticContext = this.parser.getSemanticContextAtCaretPosition(code, position);
 
 			return Promise.resolve({
 				suggestions,
 				allEntities,
-				context: semanticContext
+				context: null
 			});
 		}
 

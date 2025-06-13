@@ -122,7 +122,9 @@ class AICompletionConfigManager {
 				fn(...args);
 				this.pendingRequestCount = 0; // 重置计数器
 			} else {
-				console.log(`跳过请求 #${currentRequestId}，因为有更新的请求 #${this.pendingRequestCount}`);
+				console.log(
+					`跳过请求 #${currentRequestId}，因为有更新的请求 #${this.pendingRequestCount}`
+				);
 			}
 			this.debounceTimeout = null;
 		}, this.debounceDelay);
@@ -352,7 +354,10 @@ class CodeGenerationOverlayWidget implements editor.IOverlayWidget {
 
 		// 获取编辑器可视区域信息
 		const visibleRanges = this._editor.getVisibleRanges();
-		const cursorTop = this._editor.getTopForPosition(this._position.lineNumber, this._position.column);
+		const cursorTop = this._editor.getTopForPosition(
+			this._position.lineNumber,
+			this._position.column
+		);
 		const viewportHeight = this._editor.getLayoutInfo().height;
 		const viewportOffset = this._editor.getScrollTop();
 
@@ -388,7 +393,7 @@ class CodeGenerationOverlayWidget implements editor.IOverlayWidget {
 
 		// 计算最佳宽度：小屏幕上最多使用编辑器宽度的80%，大屏幕上限制在380px
 		const isSmallScreen = editorWidth < 600;
-		const maxWidth = isSmallScreen ? (editorWidth * 0.8) : Math.min(600, editorWidth * 0.45);
+		const maxWidth = isSmallScreen ? editorWidth * 0.8 : Math.min(600, editorWidth * 0.45);
 
 		this._domNode.style.maxWidth = `${maxWidth}px`;
 		this._domNode.style.width = `${maxWidth}px`;
@@ -535,7 +540,6 @@ export const registerCodeGenerationKeyBinding = (
 				codeGenerationOverlayWidget = null;
 			}
 
-
 			// 创建新的OverlayWidget
 			codeGenerationOverlayWidget = new CodeGenerationOverlayWidget(editorInstance);
 
@@ -604,7 +608,12 @@ export const callAIAPI = async (
 			case AIModelType.DEEPSEEK: {
 				const promptParams = buildPrompt(AIModelType.DEEPSEEK, languageId, code, offset);
 				// 调用DeepSeek的FIM接口
-				result = await callDeepSeek(promptParams.prompt!, promptParams.suffix!, config, signal);
+				result = await callDeepSeek(
+					promptParams.prompt!,
+					promptParams.suffix!,
+					config,
+					signal
+				);
 				break;
 			}
 			case AIModelType.QWEN: {
@@ -653,46 +662,50 @@ const buildPrompt = (
 	offset: number
 ): { prompt?: string; suffix?: string } => {
 	// 智能缩减上下文，提取语义完整的代码块
-	const extractContextualCode = (fullCode: string, cursorOffset: number) => {
-		// 分割代码行
-		const lines = fullCode.split('\n');
-		let lineIndex = 0;
-		let currentPos = 0;
+	// const extractContextualCode = (fullCode: string, cursorOffset: number) => {
+	// 	// 分割代码行
+	// 	const lines = fullCode.split('\n');
+	// 	let lineIndex = 0;
+	// 	let currentPos = 0;
 
-		// 找到光标所在行
-		for (let i = 0; i < lines.length; i++) {
-			const lineLength = lines[i].length + 1; // +1 是换行符
-			if (currentPos + lineLength > cursorOffset) {
-				lineIndex = i;
-				break;
-			}
-			currentPos += lineLength;
-		}
+	// 	// 找到光标所在行
+	// 	for (let i = 0; i < lines.length; i++) {
+	// 		const lineLength = lines[i].length + 1; // +1 是换行符
+	// 		if (currentPos + lineLength > cursorOffset) {
+	// 			lineIndex = i;
+	// 			break;
+	// 		}
+	// 		currentPos += lineLength;
+	// 	}
 
-		// 找到光标所在的语义块 (假设{}、SELECT/FROM等可以作为SQL语句块的标记)
-		// 1. 提取光标周围一定范围的行
-		const contextWindow = 15; // 提取前后15行作为初始上下文窗口
-		const startLine = Math.max(0, lineIndex - contextWindow);
-		const endLine = Math.min(lines.length - 1, lineIndex + contextWindow);
+	// 	// 找到光标所在的语义块 (假设{}、SELECT/FROM等可以作为SQL语句块的标记)
+	// 	// 1. 提取光标周围一定范围的行
+	// 	const contextWindow = 15; // 提取前后15行作为初始上下文窗口
+	// 	const startLine = Math.max(0, lineIndex - contextWindow);
+	// 	const endLine = Math.min(lines.length - 1, lineIndex + contextWindow);
 
-		// 2. 检查这些行，确保语法完整性
-		const contextLines = lines.slice(startLine, endLine + 1);
-		const contextCode = contextLines.join('\n');
+	// 	// 2. 检查这些行，确保语法完整性
+	// 	const contextLines = lines.slice(startLine, endLine + 1);
+	// 	const contextCode = contextLines.join('\n');
 
-		// 3. 计算前缀和后缀
-		const prefixEndPos =
-			cursorOffset - currentPos + lines[lineIndex].substring(0, cursorOffset - currentPos).length;
-		const prefix = contextCode.substring(0, prefixEndPos);
-		const suffix = contextCode.substring(prefixEndPos);
+	// 	// 3. 计算前缀和后缀
+	// 	const prefixEndPos =
+	// 		cursorOffset - currentPos + lines[lineIndex].substring(0, cursorOffset - currentPos).length;
+	// 	const prefix = contextCode.substring(0, prefixEndPos);
+	// 	const suffix = contextCode.substring(prefixEndPos);
 
-		return { prefix, suffix };
-	};
+	// 	return { prefix, suffix };
+	// };
 
-	const { prefix, suffix } = extractContextualCode(code, offset);
-	const basePrompt = `# 你是个SQL专家，针对 ${languageId} SQL语言进行FIM补全。请根据以下规则进行补全:
-1. 请提供可以运行的SQL代码，而不是代码解释。
-2. 补全代码不允许与已有的后缀代码冲突。
-3. 必要时请换行。
+	// const { prefix, suffix } = extractContextualCode(code, offset);
+
+	const prefix = code.substring(0, offset);
+	const suffix = code.substring(offset);
+	const basePrompt = `
+# 你是个SQL专家，针对 ${languageId} SQL语言进行Fill In Middle补全
+# 必须遵守以下规则：
+- 只生成一条语句, 如只包含单条CREATE TABLE语句
+- 不要包含占位符, 如'?'
 # 这是需要你补全的内容:
 `;
 
@@ -704,7 +717,7 @@ const buildPrompt = (
 			};
 		case AIModelType.QWEN:
 			return {
-				prompt: `<|fim_prefix|>${prefix}<|fim_suffix|>${suffix}<|fim_middle|>`
+				prompt: basePrompt + `<|fim_prefix|>${prefix}<|fim_suffix|>${suffix}<|fim_middle|>`
 			};
 		default:
 			return {};
@@ -718,10 +731,12 @@ const buildPrompt = (
 const parseAICompletions = (aiResponses: string[]): string[] => {
 	if (!aiResponses?.length) return [];
 
-	const cleanResponse = aiResponses.map((line) => {
-		const formatLine = line.replace(/```sql/g, '').replace(/```/g, '');
-		return formatLine === '\n' ? '' : formatLine;
-	}).filter(Boolean);
+	const cleanResponse = aiResponses
+		.map((line) => {
+			const formatLine = line.replace(/```sql/g, '').replace(/```/g, '');
+			return formatLine === '\n' ? '' : formatLine;
+		})
+		.filter(Boolean);
 
 	return cleanResponse;
 };
@@ -954,8 +969,8 @@ export const getAICompletions = async (
 	// 检查缓存
 	const cachedResult = configManager.getCachedResult(cacheKey);
 	if (cachedResult) {
-	//	console.log('使用缓存的AI补全结果');
-	//	return cachedResult;
+		//	console.log('使用缓存的AI补全结果');
+		//	return cachedResult;
 	}
 
 	// 使用防抖处理请求
