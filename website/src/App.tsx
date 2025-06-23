@@ -5,6 +5,7 @@ import InstanceService from '@dtinsight/molecule/esm/services/instanceService';
 import { ExtendsWorkbench } from './extensions/workbench';
 import { version, dependencies } from '../../package.json';
 import { editor } from 'monaco-editor/esm/vs/editor/editor.api';
+import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { registerCodeGenerationKeyBinding } from './languages/helpers/aiCompletionService';
 
 import './languages';
@@ -19,22 +20,30 @@ import './App.css';
  * You can also set configurations when creating monaco-editor instance
  */
 editor.onDidCreateEditor((editorInstance) => {
-	// 设置只用回车键接受补全建议
 	editorInstance.updateOptions({
-		// 接受补全按键配置为仅回车键
 		acceptSuggestionOnEnter: 'on',
 		suggest: {
-			snippetsPreventQuickSuggestions: false,
+			snippetsPreventQuickSuggestions: false
 		},
 		inlineSuggest: {
-			enabled: false,
-		},
+			enabled: true
+		}
 	});
 
-	// 注册代码生成快捷键 (Command+I / Ctrl+I)
+	// 禁用Monaco Editor原生的Command+K快捷键
 	try {
-		registerCodeGenerationKeyBinding(editorInstance);
-		console.log('AI代码生成快捷键注册成功');
+		if ('addCommand' in editorInstance) {
+			const standaloneEditor = editorInstance as editor.IStandaloneCodeEditor;
+
+			// 移除原生的Command+K快捷键绑定
+			standaloneEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK, () => {
+				// 空函数，禁用原生功能
+			});
+
+			// 注册我们自定义的代码生成快捷键
+			registerCodeGenerationKeyBinding(standaloneEditor);
+			console.log('AI代码生成快捷键注册成功，原生Command+K已禁用');
+		}
 	} catch (error) {
 		console.error('注册AI代码生成快捷键失败:', error);
 	}
@@ -83,11 +92,7 @@ function App(): React.ReactElement {
 		}
 	}, []);
 
-	return (
-		<div>
-			{MyWorkbench}
-		</div>
-	);
+	return <div>{MyWorkbench}</div>;
 }
 
 window.console.log(

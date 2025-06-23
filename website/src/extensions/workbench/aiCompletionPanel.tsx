@@ -161,10 +161,10 @@ const AICompletionPanel: React.FC = () => {
 		if (config) {
 			setModelType(config.type);
 			setApiKey(config.apiKey);
-			setModel(config.model || 'qwen-coder-turbo');
-			setEndpoint(config.endpoint || '');
-			setTemperature(config.temperature || 0.7);
-			setMaxTokens(undefined);
+			setModel(config.defaultConfig?.model || 'qwen-coder-turbo');
+			setEndpoint(config.defaultConfig?.endpoint || '');
+			setTemperature(config.defaultConfig?.temperature || 0.7);
+			setMaxTokens(config.defaultConfig?.maxTokens || undefined);
 		}
 
 		setIsEnabled(configManager.getEnabled());
@@ -175,10 +175,12 @@ const AICompletionPanel: React.FC = () => {
 		const config: AIModelConfig = {
 			type: modelType,
 			apiKey,
-			model,
-			endpoint,
-			temperature,
-			maxTokens
+			defaultConfig: {
+				model,
+				endpoint,
+				temperature,
+				maxTokens
+			}
 		};
 
 		configManager.setConfig(config);
@@ -186,10 +188,9 @@ const AICompletionPanel: React.FC = () => {
 		configManager.saveConfig();
 
 		setTestStatus('success');
-		setTestMessage('配置已保存, 请刷新页面');
+		setTestMessage('配置已保存, 即将刷新页面应用配置');
 		setTimeout(() => {
-			setTestStatus('idle');
-			setTestMessage('');
+			window.location.reload();
 		}, 3000);
 	};
 
@@ -226,7 +227,8 @@ const AICompletionPanel: React.FC = () => {
 				const data = await response.json();
 				result = data.choices?.[0]?.text || '';
 			} else if (modelType === AIModelType.QWEN) {
-				const apiUrl = endpoint || 'https://dashscope.aliyuncs.com/compatible-mode/v1/completions';
+				const apiUrl =
+					endpoint || 'https://dashscope.aliyuncs.com/compatible-mode/v1/completions';
 				const response = await fetch(apiUrl, {
 					method: 'POST',
 					headers: {
@@ -301,14 +303,13 @@ const AICompletionPanel: React.FC = () => {
 				const qwenModelOptions = [
 					'qwen-coder-turbo',
 					'qwen-coder-plus',
-					'qwen-max',
 					'qwen2.5-coder-32b-instruct',
 					'qwen2.5-coder-3b-instruct'
 				];
 				return (
 					<>
 						<div style={styles.formGroup}>
-							<label style={styles.label}>通义千问 API 端点</label>
+							<label style={styles.label}>通义千问 API 端点(不用填)</label>
 							<input
 								type="text"
 								style={styles.input}
@@ -448,7 +449,9 @@ const AICompletionPanel: React.FC = () => {
 							style={{
 								...styles.button,
 								backgroundColor: '#009688',
-								...(testStatus === 'testing' || !apiKey ? styles.buttonDisabled : {})
+								...(testStatus === 'testing' || !apiKey
+									? styles.buttonDisabled
+									: {})
 							}}
 							onClick={testConnection}
 							disabled={testStatus === 'testing' || !apiKey}
@@ -466,8 +469,9 @@ const AICompletionPanel: React.FC = () => {
 			<div style={styles.section}>
 				<h3 style={styles.sectionTitle}>关于 AI 补全</h3>
 				<p style={styles.infoText}>
-					启用 AI 补全后，编辑器将使用人工智能技术提供更智能的 SQL 补全建议。 你需要提供自己的 API
-					Key 以连接 AI 服务。所有凭证仅存储在本地浏览器中， 不会上传到任何服务器。
+					启用 AI 补全后，编辑器将使用人工智能技术提供更智能的 SQL 补全建议。
+					你需要提供自己的 API Key 以连接 AI 服务。所有凭证仅存储在本地浏览器中，
+					不会上传到任何服务器。
 				</p>
 			</div>
 		</div>

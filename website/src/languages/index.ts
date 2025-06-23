@@ -4,7 +4,11 @@ import './theme';
 import { setupLanguageFeatures, LanguageIdEnum } from 'monaco-sql-languages/esm/main.js';
 import { completionService } from './helpers/completionService';
 import { languages } from 'monaco-editor/esm/vs/editor/editor.api';
-import { getAICompletions, getAICompletionConfigManager } from './helpers/aiCompletionService';
+import {
+	getAICompletions,
+	getAICompletionConfigManager,
+	PromptScenario
+} from './helpers/aiCompletionService';
 
 // 初始化AI补全配置 - 确保在应用启动时就加载配置
 (() => {
@@ -129,7 +133,6 @@ setupLanguageFeatures(LanguageIdEnum.IMPALA, {
 	preprocessCode
 });
 
-// 为所有SQL方言注册行内补全提供者
 const registerInlineCompletionsForLanguage = (languageId: string) => {
 	// 用于跟踪输入变化
 	let lastPosition = { lineNumber: 0, column: 0 };
@@ -171,15 +174,27 @@ const registerInlineCompletionsForLanguage = (languageId: string) => {
 				// 获取当前代码和光标位置
 				const code = model.getValue();
 				const offset = model.getOffsetAt(position);
-				const linePrefix = model
-					.getLineContent(position.lineNumber)
-					.substring(0, position.column - 1);
+				const prefix = code.substring(0, offset);
+				const suffix = code.substring(offset);
 
-				const aiCompletionItems = await getAICompletions(languageId, code, offset, token);
+				const aiCompletionItems = await getAICompletions(
+					PromptScenario.SYNTAX_COMPLETION,
+					{
+						languageId,
+						prefix,
+						suffix
+					},
+					token
+				);
 
 				if (aiCompletionItems.length === 0) {
 					return { items: [] };
 				}
+
+				// 当前行的光标前缀代码
+				const linePrefix = model
+					.getLineContent(position.lineNumber)
+					.substring(0, position.column - 1);
 
 				// 转换为行内补全格式
 				const items = aiCompletionItems.map((completion) => ({
@@ -202,13 +217,10 @@ const registerInlineCompletionsForLanguage = (languageId: string) => {
 				return { items: [] };
 			}
 		},
-		freeInlineCompletions() {
-			// 释放资源
-		}
+		freeInlineCompletions() {}
 	});
 };
 
-// 为所有SQL方言注册行内补全
 Object.values(LanguageIdEnum).forEach((languageId) => {
 	registerInlineCompletionsForLanguage(languageId);
 });

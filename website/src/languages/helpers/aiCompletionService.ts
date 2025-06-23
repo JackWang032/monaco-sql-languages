@@ -1,4 +1,3 @@
-import { createRoot } from 'react-dom/client';
 import {
 	CancellationToken,
 	editor,
@@ -7,14 +6,31 @@ import {
 } from 'monaco-editor/esm/vs/editor/editor.api';
 import OpenAI from 'openai';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import CodeGenerationWidget from '../../extensions/workbench/codeGenerationWidget';
+import { createCodeGenerationOverlayWidget } from '../../extensions/workbench/codeGenerationWidget';
+import { PromptScenario, PromptContext, getPromptSystemManager } from './promptSystem';
 
 /**
- * AI模型服务类型
+ * AI模型服务
  */
 export enum AIModelType {
 	DEEPSEEK = 'deepseek',
 	QWEN = 'qwen'
+}
+
+/**
+ * AI场景特定的API配置
+ */
+export interface ScenarioAPIConfig {
+	/** 端点URL */
+	endpoint?: string;
+	/** 模型名称 */
+	model?: string;
+	/** 温度参数 */
+	temperature?: number;
+	/** 最大token数 */
+	maxTokens?: number;
+	/** 是否使用聊天模式 */
+	useChatMode?: boolean;
 }
 
 /**
@@ -23,34 +39,77 @@ export enum AIModelType {
 export interface AIModelConfig {
 	type: AIModelType;
 	apiKey: string;
-	model?: string; // 使用的模型名称
-	endpoint?: string; // 自定义端点URL
-	temperature?: number; // 随机性
-	maxTokens?: number; // 最大生成token数
+	/** 默认配置 */
+	defaultConfig?: {
+		model?: string;
+		endpoint?: string;
+		temperature?: number;
+		maxTokens?: number;
+	};
+	/** 不同场景的特定配置 */
+	scenarioConfigs?: Partial<Record<PromptScenario, ScenarioAPIConfig>>;
 }
 
 /**
  * 创建OpenAI兼容的客户端
  * @param config AI模型配置
+ * @param scenario 使用场景
  * @returns OpenAI客户端实例
  */
-const createOpenAIClient = (config: AIModelConfig): OpenAI => {
+const createOpenAIClient = (config: AIModelConfig, scenario?: PromptScenario): OpenAI => {
+	// 获取场景特定配置
+	const scenarioConfig = scenario ? config.scenarioConfigs?.[scenario] : undefined;
+	const endpoint = scenarioConfig?.endpoint || config.defaultConfig?.endpoint;
+
 	switch (config.type) {
 		case AIModelType.DEEPSEEK:
 			return new OpenAI({
 				dangerouslyAllowBrowser: true,
 				apiKey: config.apiKey,
-				baseURL: config.endpoint || 'https://api.deepseek.com/beta'
+				baseURL: endpoint || 'https://api.deepseek.com/beta'
 			});
 		case AIModelType.QWEN:
 			return new OpenAI({
 				dangerouslyAllowBrowser: true,
 				apiKey: config.apiKey,
-				baseURL: config.endpoint || 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+				baseURL: endpoint || 'https://dashscope.aliyuncs.com/compatible-mode/v1'
 			});
 		default:
 			throw new Error(`不支持的AI模型类型: ${config.type}`);
 	}
+};
+
+/**
+ * @param config AI模型配置
+ * @param scenario 使用场景
+ * @param templateParams 提示词模板参数
+ * @returns 模型参数
+ */
+const getScenarioModelParams = (
+	config: AIModelConfig,
+	scenario: PromptScenario,
+	templateParams?: { temperature?: number; maxTokens?: number }
+) => {
+	const scenarioConfig = config.scenarioConfigs?.[scenario];
+	const defaultConfig = config.defaultConfig;
+
+	const temperature =
+		scenarioConfig?.temperature ??
+		templateParams?.temperature ??
+		defaultConfig?.temperature ??
+		0.3;
+
+	const maxTokens =
+		scenarioConfig?.maxTokens ?? templateParams?.maxTokens ?? defaultConfig?.maxTokens ?? 512;
+
+	const model =
+		scenarioConfig?.model ??
+		defaultConfig?.model ??
+		(config.type === AIModelType.DEEPSEEK ? 'deepseek-coder' : 'qwen-coder-turbo');
+
+	const useChatMode = scenarioConfig?.useChatMode ?? true;
+
+	return { temperature, maxTokens, model, useChatMode };
 };
 
 /**
@@ -194,6 +253,62 @@ class AICompletionConfigManager {
 			console.error('保存AI补全配置失败', e);
 		}
 	}
+
+	/**
+	 * 设置场景特定配置
+	 * @param scenario 场景
+	 * @param config 配置
+	 */
+	public setScenarioConfig(scenario: PromptScenario, config: ScenarioAPIConfig): void {
+		if (!this.config) {
+			console.warn('请先设置基础配置');
+			return;
+		}
+
+		if (!this.config.scenarioConfigs) {
+			this.config.scenarioConfigs = {};
+		}
+
+		this.config.scenarioConfigs[scenario] = config;
+		this.saveConfig();
+	}
+
+	/**
+	 * 获取场景特定配置
+	 * @param scenario 场景
+	 * @returns 场景配置
+	 */
+	public getScenarioConfig(scenario: PromptScenario): ScenarioAPIConfig | undefined {
+		return this.config?.scenarioConfigs?.[scenario];
+	}
+
+	/**
+	 * 批量设置场景配置
+	 * @param configs 场景配置映射
+	 */
+	public setScenarioConfigs(configs: Partial<Record<PromptScenario, ScenarioAPIConfig>>): void {
+		if (!this.config) {
+			console.warn('请先设置基础配置');
+			return;
+		}
+
+		this.config.scenarioConfigs = { ...this.config.scenarioConfigs, ...configs };
+		this.saveConfig();
+	}
+
+	/**
+	 * 使用预设配置
+	 * @param presetName 预设名称
+	 */
+	public usePreset(presetName: keyof typeof SCENARIO_API_PRESETS): void {
+		const preset = SCENARIO_API_PRESETS[presetName];
+		if (preset) {
+			this.setScenarioConfigs(preset);
+			console.log(`已应用预设配置: ${presetName}`);
+		} else {
+			console.warn(`未找到预设配置: ${presetName}`);
+		}
+	}
 }
 
 /**
@@ -204,71 +319,111 @@ export const getAICompletionConfigManager = (): AICompletionConfigManager => {
 };
 
 /**
- * 发送请求到DeepSeek API（使用FIM填充中间模式）
  * @param prompt 提示文本
- * @param suffix 后缀文本
+ * @param suffix 后缀文本（FIM模式）
  * @param config AI模型配置
+ * @param scenario 使用场景
  * @param signal AbortController的signal，用于取消请求
+ * @param systemPrompt 系统提示词（Chat模式）
  * @returns AI补全响应数组
  */
 export const callDeepSeek = async (
 	prompt: string,
 	suffix: string,
 	config: AIModelConfig,
-	signal?: AbortSignal
+	scenario: PromptScenario = PromptScenario.SYNTAX_COMPLETION,
+	signal?: AbortSignal,
+	systemPrompt?: string
 ): Promise<string[]> => {
 	if (!config.apiKey) {
 		throw new Error('未配置DeepSeek API Key');
 	}
 
-	const openai = createOpenAIClient(config);
+	const openai = createOpenAIClient(config, scenario);
+	const modelParams = getScenarioModelParams(config, scenario);
 
-	// 使用Fill-in-the-Middle (FIM) 模式
-	const response = await openai.completions.create(
-		{
-			model: config.model || 'deepseek-coder',
-			temperature: config.temperature,
-			max_tokens: config.maxTokens,
-			prompt,
-			suffix
-		},
-		{ signal }
-	);
-
-	// 提取生成的内容
-	return response.choices.map((choice) => choice.text || '');
+	// 根据场景决定使用FIM还是Chat模式
+	if (modelParams.useChatMode && systemPrompt) {
+		// Chat模式
+		const response = await openai.chat.completions.create(
+			{
+				model: modelParams.model,
+				temperature: modelParams.temperature,
+				max_tokens: modelParams.maxTokens,
+				messages: [
+					{ role: 'system', content: systemPrompt },
+					{ role: 'user', content: prompt }
+				]
+			},
+			{ signal }
+		);
+		return response.choices.map((choice) => choice.message?.content || '');
+	} else {
+		// FIM模式
+		const response = await openai.completions.create(
+			{
+				model: modelParams.model,
+				temperature: modelParams.temperature,
+				max_tokens: modelParams.maxTokens,
+				prompt,
+				suffix
+			},
+			{ signal }
+		);
+		return response.choices.map((choice) => choice.text || '');
+	}
 };
 
 /**
- * 发送请求到通义千问Coder API
  * @param prompt 提示文本
  * @param config AI模型配置
- * @param signal AbortController的signal，用于取消请求
+ * @param scenario 使用场景
+ * @param signal 用于取消请求
+ * @param systemPrompt 系统提示词
  * @returns AI补全响应数组
  */
 export const callQwen = async (
 	prompt: string,
 	config: AIModelConfig,
-	signal?: AbortSignal
+	scenario: PromptScenario = PromptScenario.SYNTAX_COMPLETION,
+	signal?: AbortSignal,
+	systemPrompt?: string
 ): Promise<string[]> => {
 	if (!config.apiKey) {
 		throw new Error('未配置通义千问 API Key');
 	}
 
-	const openai = createOpenAIClient(config);
-
-	const response = await openai.completions.create(
-		{
-			model: config.model || 'qwen-coder-turbo', // 默认使用通义千问Code模型
-			temperature: config.temperature,
-			max_tokens: config.maxTokens,
-			prompt
-		},
-		{ signal }
-	);
-
-	// 提取生成的内容
-	return response.choices.map((choice) => choice.text || '');
+	const openai = createOpenAIClient(config, scenario);
+	const modelParams = getScenarioModelParams(config, scenario);
+	// 根据场景决定使用FIM还是Chat模式
+	if (modelParams.useChatMode && systemPrompt) {
+		// Chat模式
+		const response = await openai.chat.completions.create(
+			{
+				model: modelParams.model,
+				temperature: modelParams.temperature,
+				max_tokens: modelParams.maxTokens,
+				messages: [
+					{ role: 'system', content: systemPrompt },
+					{ role: 'user', content: prompt }
+				]
+			},
+			{ signal }
+		);
+		return response.choices.map((choice) => choice.message?.content || '');
+	} else {
+		// FIM模式
+		const response = await openai.completions.create(
+			{
+				model: modelParams.model,
+				temperature: modelParams.temperature,
+				max_tokens: modelParams.maxTokens,
+				prompt
+			},
+			{ signal }
+		);
+		return response.choices.map((choice) => choice.text || '');
+	}
 };
 
 /**
@@ -292,223 +447,8 @@ export interface CodeGenerationWidgetState {
 // 注册快捷键处理的标志，确保只注册一次
 let keyBindingRegistered = false;
 
-// 导入React和ReactDOM
-import React from 'react';
-import ReactDOM from 'react-dom';
-
-// OverlayWidget实例
-let codeGenerationOverlayWidget: CodeGenerationOverlayWidget | null = null;
-
-/**
- * 代码生成OverlayWidget实现
- */
-class CodeGenerationOverlayWidget implements editor.IOverlayWidget {
-	private readonly _id: string = 'code-generation-overlay-widget';
-	private readonly _domNode: HTMLElement;
-	private readonly _editor: editor.IStandaloneCodeEditor;
-	private _position: monaco.Position | null = null;
-	private _selectionRange: monaco.Range | null = null;
-
-	constructor(editorInstance: editor.IStandaloneCodeEditor) {
-		this._editor = editorInstance;
-
-		// 创建DOM节点并设置基本样式
-		this._domNode = document.createElement('div');
-		this._domNode.className = 'code-generation-overlay';
-		this._domNode.style.zIndex = '1000';
-
-		// 添加入场动画的初始状态
-		this._domNode.style.opacity = '0';
-		this._domNode.style.transform = 'translateY(-10px)';
-
-		// 确保全局样式已添加
-		this.ensureGlobalStyles();
-
-		// 通过setTimeout来确保CSS过渡动画能够生效
-		setTimeout(() => {
-			this._domNode.style.opacity = '1';
-			this._domNode.style.transform = 'translateY(0)';
-		}, 10);
-	}
-
-	getId(): string {
-		return this._id;
-	}
-
-	getDomNode(): HTMLElement {
-		return this._domNode;
-	}
-
-	setPosition(position: monaco.Position, selectionRange: monaco.Range | null = null): void {
-		this._position = position;
-		this._selectionRange = selectionRange;
-
-		// 通知编辑器更新覆盖小部件的位置
-		if (this._editor) {
-			this._editor.layoutOverlayWidget(this);
-		}
-	}
-
-	getPosition(): editor.IOverlayWidgetPosition | null {
-		if (!this._position) return null;
-
-		// 获取编辑器可视区域信息
-		const visibleRanges = this._editor.getVisibleRanges();
-		const cursorTop = this._editor.getTopForPosition(
-			this._position.lineNumber,
-			this._position.column
-		);
-		const viewportHeight = this._editor.getLayoutInfo().height;
-		const viewportOffset = this._editor.getScrollTop();
-
-		// 判断光标位置在视口的上半部分还是下半部分
-		const cursorRelativePos = cursorTop - viewportOffset;
-		const isInUpperHalf = cursorRelativePos < viewportHeight / 2;
-
-		// 根据光标位置决定小部件的位置偏好
-		if (isInUpperHalf) {
-			// 光标在上半部分，小部件显示在下面
-			return {
-				preference: monaco.editor.OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER
-			};
-		} else {
-			// 光标在下半部分，小部件显示在上面
-			return {
-				preference: monaco.editor.OverlayWidgetPositionPreference.TOP_CENTER
-			};
-		}
-	}
-
-	// 渲染React组件
-	renderContent(): void {
-		if (!this._position) return;
-
-		// 添加动画效果的类
-		this._domNode.className = 'code-generation-overlay';
-
-		// 智能计算小部件的尺寸
-		const editorInfo = this._editor.getLayoutInfo();
-		const editorWidth = editorInfo.width;
-		const editorHeight = editorInfo.height;
-
-		// 计算最佳宽度：小屏幕上最多使用编辑器宽度的80%，大屏幕上限制在380px
-		const isSmallScreen = editorWidth < 600;
-		const maxWidth = isSmallScreen ? editorWidth * 0.8 : Math.min(600, editorWidth * 0.45);
-
-		this._domNode.style.maxWidth = `${maxWidth}px`;
-		this._domNode.style.width = `${maxWidth}px`;
-
-		this._domNode.style.boxShadow = '0 4px 16px rgba(0, 0, 0, 0.25)';
-		this._domNode.style.borderRadius = '4px';
-
-		const root = createRoot(this._domNode);
-		root.render(
-			React.createElement(CodeGenerationWidget, {
-				editorInstance: this._editor,
-				initialPosition: this._position,
-				initialSelection: this._selectionRange,
-				widgetWidth: maxWidth,
-				onClose: () => {
-					this.dispose();
-				}
-			})
-		);
-
-		// 使用setTimeout确保渲染完成后再开始动画
-		setTimeout(() => {
-			this._domNode.classList.add('animated');
-		}, 10);
-	}
-
-	// 销毁Widget
-	// 确保全局CSS样式已添加
-	private ensureGlobalStyles(): void {
-		let styleElem = document.getElementById('code-generation-styles');
-		if (styleElem) return; // 样式已存在，无需再次添加
-
-		styleElem = document.createElement('style');
-		styleElem.id = 'code-generation-styles';
-		styleElem.textContent = `
-			.code-generation-overlay-widget {
-				z-index: 100000;
-			}
-
-			.code-generation-overlay {
-				transition: opacity 0.2s ease, transform 0.2s ease;
-				box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-				border-radius: 4px;
-				overflow: hidden;
-				pointer-events: auto;
-				opacity: 0;
-				transform: translateY(-10px);
-			}
-
-			/* 动画效果类 */
-			.code-generation-overlay.animated {
-				opacity: 1;
-				transform: translateY(0);
-			}
-
-			/* 编辑器暗色主题样式 */
-			body.vs-dark .code-generation-overlay button:hover {
-				background-color: #1177bb;
-			}
-
-			body.vs-dark .code-generation-overlay button.cancel:hover {
-				background-color: #4c4c4c;
-			}
-
-			/* 鼠标悬停效果 */
-			.code-generation-overlay .icon-button:hover {
-				background-color: rgba(255, 255, 255, 0.1);
-			}
-
-			/* 输入框样式 */
-			.code-generation-overlay textarea:focus {
-				outline: none;
-				border-color: #007acc;
-			}
-
-			/* 确保文本在暗色主题中清晰可见 */
-			body.vs-dark .code-generation-overlay {
-				color: #ffffff;
-				background-color: #252526;
-			}
-
-			body.vs-dark .code-generation-overlay textarea {
-				background-color: #1e1e1e;
-				color: #ffffff;
-				border-color: #3c3c3c;
-			}
-		`;
-		document.head.appendChild(styleElem);
-	}
-
-	dispose(): void {
-		// 移除animated类以触发淡出动画
-		this._domNode.classList.remove('animated');
-
-		// 确保还原初始状态
-		this._domNode.style.opacity = '0';
-		this._domNode.style.transform = 'translateY(-10px)';
-
-		// 等待动画完成后再彻底移除
-		setTimeout(() => {
-			// 卸载React组件
-			ReactDOM.unmountComponentAtNode(this._domNode);
-
-			// 从编辑器中移除Widget
-			if (this._editor && codeGenerationOverlayWidget === this) {
-				this._editor.removeOverlayWidget(this);
-				codeGenerationOverlayWidget = null;
-			}
-
-			// 清理任何浮动状态
-			this._position = null;
-			this._selectionRange = null;
-		}, 200); // 200ms与CSS过渡动画时间匹配
-	}
-}
+// 当前活动的viewZone实例
+let activeCodeGenerationViewZone: { dispose: () => void } | null = null;
 
 /**
  * 注册快捷键处理
@@ -519,13 +459,13 @@ export const registerCodeGenerationKeyBinding = (
 ): void => {
 	if (keyBindingRegistered) return;
 
-	const KeyMod = monaco.KeyMod;
 	const KeyCode = monaco.KeyCode;
 
-	// 使用事件监听代替addCommand，避免KeybindingService问题
 	editorInstance.onKeyDown((e) => {
-		// Ctrl+Enter 或 Cmd+Enter
-		if ((e.ctrlKey || e.metaKey) && e.keyCode === KeyCode.Enter) {
+		if ((e.ctrlKey || e.metaKey) && e.keyCode === KeyCode.KeyK) {
+			e.preventDefault();
+			e.stopPropagation();
+
 			const selection = editorInstance.getSelection();
 			const position = selection ? selection.getPosition() : editorInstance.getPosition();
 
@@ -534,23 +474,23 @@ export const registerCodeGenerationKeyBinding = (
 			// 如果有选择范围，则将其传递给widget供后续替换使用
 			const selectionRange = selection && !selection.isEmpty() ? selection : null;
 
-			// 如果已经有widget，先删除
-			if (codeGenerationOverlayWidget) {
-				codeGenerationOverlayWidget.dispose();
-				codeGenerationOverlayWidget = null;
+			// 如果已经有viewZone，先清理
+			if (activeCodeGenerationViewZone) {
+				activeCodeGenerationViewZone.dispose();
+				activeCodeGenerationViewZone = null;
 			}
 
-			// 创建新的OverlayWidget
-			codeGenerationOverlayWidget = new CodeGenerationOverlayWidget(editorInstance);
-
-			// 设置位置和选择范围
-			codeGenerationOverlayWidget.setPosition(position, selectionRange);
-
-			// 添加到编辑器
-			editorInstance.addOverlayWidget(codeGenerationOverlayWidget);
-
-			// 渲染内容
-			codeGenerationOverlayWidget.renderContent();
+			// 创建新的ViewZone
+			activeCodeGenerationViewZone = createCodeGenerationOverlayWidget(
+				editorInstance,
+				position,
+				selectionRange,
+				undefined, // widgetWidth
+				() => {
+					// 当viewZone被dispose时清理全局状态
+					activeCodeGenerationViewZone = null;
+				}
+			);
 		}
 	});
 
@@ -560,18 +500,16 @@ export const registerCodeGenerationKeyBinding = (
 let abortController: AbortController | null = null;
 
 /**
- * 根据类型调用对应的AI API
- * @param languageId 语言类型
- * @param code 当前代码
- * @param offset 光标位置
+ * @param scenario 场景类型
+ * @param context 提示词上下文
  * @param config AI模型配置
- * @param signal AbortController的signal，用于取消请求
+ * @param requestId 请求ID
+ * @param token 取消令牌
  * @returns AI补全响应
  */
-export const callAIAPI = async (
-	languageId: string,
-	code: string,
-	offset: number,
+export const callAIService = async (
+	scenario: PromptScenario,
+	context: PromptContext,
 	config: AIModelConfig,
 	requestId: string,
 	token?: CancellationToken
@@ -583,144 +521,79 @@ export const callAIAPI = async (
 			abortController = null;
 		}
 
-		// 如果已经请求取消，直接返回
 		if (token?.isCancellationRequested) {
 			return [];
 		}
 
-		// 创建一个新的 AbortController
 		abortController = new AbortController();
 		const signal = abortController.signal;
 
-		// 注册取消事件
 		token?.onCancellationRequested(() => {
 			if (abortController) {
 				abortController.abort();
 			}
 		});
 
-		console.log(`[${requestId}] AI请求中...`);
-		let start = Date.now();
+		console.log(`[${requestId}] AI请求中... 场景: ${scenario}`);
+		const start = Date.now();
+
+		// 使用提示词系统处理上下文
+		const promptManager = getPromptSystemManager();
+		const processedPrompt = promptManager.processPrompt(scenario, context);
 
 		let result: string[] = [];
 
 		switch (config.type) {
 			case AIModelType.DEEPSEEK: {
-				const promptParams = buildPrompt(AIModelType.DEEPSEEK, languageId, code, offset);
-				// 调用DeepSeek的FIM接口
-				result = await callDeepSeek(
-					promptParams.prompt!,
-					promptParams.suffix!,
-					config,
-					signal
-				);
+				if (scenario === PromptScenario.SYNTAX_COMPLETION) {
+					// 语法补全使用FIM模式
+					result = await callDeepSeek(
+						context.prefix || '',
+						context.suffix || '',
+						config,
+						scenario,
+						signal
+					);
+				} else {
+					result = await callDeepSeek(
+						processedPrompt.userPrompt,
+						'',
+						config,
+						scenario,
+						signal,
+						processedPrompt.systemPrompt
+					);
+				}
 				break;
 			}
 			case AIModelType.QWEN: {
-				const promptParams = buildPrompt(AIModelType.QWEN, languageId, code, offset);
-				// 调用通义千问的FIM接口
-				result = await callQwen(promptParams.prompt!, config, signal);
+				if (scenario === PromptScenario.SYNTAX_COMPLETION) {
+					// 语法补全使用FIM模式
+					result = await callQwen(processedPrompt.userPrompt, config, scenario, signal);
+				} else {
+					// 其他场景使用Chat模式
+					result = await callQwen(
+						processedPrompt.userPrompt,
+						config,
+						scenario,
+						signal,
+						processedPrompt.systemPrompt
+					);
+				}
 				break;
 			}
 			default:
 				throw new Error(`不支持的AI模型类型: ${config.type}`);
 		}
+
 		const costs = Date.now() - start;
-		console.log(`[${requestId}] AI请求完成[${costs}ms]`);
+		console.log(`[${requestId}] AI请求完成[${costs}ms] 场景: ${scenario}`);
 		return result;
 	} catch (error: any) {
 		if (typeof error === 'object' && error.toString().includes('Abort')) {
 			console.log(`[${requestId}] 请求已取消`);
 		}
 		return [];
-	}
-};
-
-export const getPositionAtOffset = (offset: number, code: string) => {
-	const prefix = code.substring(0, offset);
-	const lines = prefix.split('\n');
-	const currentLine = lines.length;
-	// 计算光标在当前行的列位置
-	const cursorPositionInLine = lines[lines.length - 1].length + 1;
-	return {
-		line: currentLine,
-		column: cursorPositionInLine
-	};
-};
-
-/**
- * 构建AI提示
- * @param languageId 语言类型
- * @param code 当前代码
- * @param offset 光标位置
- * @returns 提示文本
- */
-const buildPrompt = (
-	model: AIModelType,
-	languageId: string,
-	code: string,
-	offset: number
-): { prompt?: string; suffix?: string } => {
-	// 智能缩减上下文，提取语义完整的代码块
-	// const extractContextualCode = (fullCode: string, cursorOffset: number) => {
-	// 	// 分割代码行
-	// 	const lines = fullCode.split('\n');
-	// 	let lineIndex = 0;
-	// 	let currentPos = 0;
-
-	// 	// 找到光标所在行
-	// 	for (let i = 0; i < lines.length; i++) {
-	// 		const lineLength = lines[i].length + 1; // +1 是换行符
-	// 		if (currentPos + lineLength > cursorOffset) {
-	// 			lineIndex = i;
-	// 			break;
-	// 		}
-	// 		currentPos += lineLength;
-	// 	}
-
-	// 	// 找到光标所在的语义块 (假设{}、SELECT/FROM等可以作为SQL语句块的标记)
-	// 	// 1. 提取光标周围一定范围的行
-	// 	const contextWindow = 15; // 提取前后15行作为初始上下文窗口
-	// 	const startLine = Math.max(0, lineIndex - contextWindow);
-	// 	const endLine = Math.min(lines.length - 1, lineIndex + contextWindow);
-
-	// 	// 2. 检查这些行，确保语法完整性
-	// 	const contextLines = lines.slice(startLine, endLine + 1);
-	// 	const contextCode = contextLines.join('\n');
-
-	// 	// 3. 计算前缀和后缀
-	// 	const prefixEndPos =
-	// 		cursorOffset - currentPos + lines[lineIndex].substring(0, cursorOffset - currentPos).length;
-	// 	const prefix = contextCode.substring(0, prefixEndPos);
-	// 	const suffix = contextCode.substring(prefixEndPos);
-
-	// 	return { prefix, suffix };
-	// };
-
-	// const { prefix, suffix } = extractContextualCode(code, offset);
-
-	const prefix = code.substring(0, offset);
-	const suffix = code.substring(offset);
-	const basePrompt = `
-# 你是个SQL专家，针对 ${languageId} SQL语言进行Fill In Middle补全
-# 必须遵守以下规则：
-- 只生成一条语句, 如只包含单条CREATE TABLE语句
-- 不要包含占位符, 如'?'
-# 这是需要你补全的内容:
-`;
-
-	switch (model) {
-		case AIModelType.DEEPSEEK:
-			return {
-				prompt: `${basePrompt} ${prefix}`,
-				suffix: suffix
-			};
-		case AIModelType.QWEN:
-			return {
-				prompt: basePrompt + `<|fim_prefix|>${prefix}<|fim_suffix|>${suffix}<|fim_middle|>`
-			};
-		default:
-			return {};
 	}
 };
 
@@ -742,25 +615,15 @@ const parseAICompletions = (aiResponses: string[]): string[] => {
 };
 
 /**
- * 获取AI补全建议
- * @param languageId 语言ID
- * @param code 当前代码
- * @param offset 光标位置
- * @param token 取消令牌
- * @returns 补全项数组
- */
-/**
  * 使用AI生成代码
- * @param languageId 语言ID
- * @param prompt 提示文本
- * @param existingCode 现有代码（可选，用于上下文）
+ * @param scenario 生成场景
+ * @param context 提示词上下文
  * @param token 取消令牌
  * @returns 生成的代码
  */
 export const generateCodeWithAI = async (
-	languageId: string,
-	prompt: string,
-	existingCode?: string,
+	scenario: PromptScenario,
+	context: PromptContext,
 	token?: CancellationToken
 ): Promise<string | null> => {
 	const configManager = getAICompletionConfigManager();
@@ -789,87 +652,11 @@ export const generateCodeWithAI = async (
 		return null;
 	}
 
-	// 创建一个新的 AbortController
-	abortController = new AbortController();
-	const signal = abortController.signal;
-
-	// 注册取消事件
-	let disposable: { dispose: () => void } | undefined;
-	if (token) {
-		disposable = token.onCancellationRequested(() => {
-			if (abortController) {
-				abortController.abort();
-			}
-		});
-	}
-
 	try {
 		const requestId = Math.random().toString(36).substring(2, 8);
-		console.log(`[${requestId}] AI代码生成请求中...`);
-		const start = Date.now();
+		console.log(`[${requestId}] AI代码生成请求中... `);
 
-		let fullPrompt = '';
-		if (existingCode) {
-			// 如果有现有代码，将其作为上下文
-			fullPrompt = `
-当前代码:
-\`\`\`${languageId}
-${existingCode}
-\`\`\`
-
-${prompt}
-
-请只生成代码，不要有额外解释。如果是SQL请确保语法正确。
-`;
-		} else {
-			// 无现有代码，直接使用提示
-			fullPrompt = `${prompt}\n\n请只生成代码，不要有额外解释。如果是SQL请确保语法正确。`;
-		}
-
-		let result: string[] = [];
-
-		switch (config.type) {
-			case AIModelType.DEEPSEEK: {
-				// 在代码生成模式下，不使用FIM，而是直接输入提示
-				const openai = createOpenAIClient(config);
-				const response = await openai.completions.create(
-					{
-						model: config.model || 'deepseek-coder',
-						temperature: config.temperature,
-						max_tokens: config.maxTokens || 1024,
-						prompt: fullPrompt
-					},
-					{ signal }
-				);
-				result = response.choices.map((choice) => choice.text || '');
-				break;
-			}
-			case AIModelType.QWEN: {
-				// 通义千问直接使用完整提示
-				const openai = createOpenAIClient(config);
-				const response = await openai.completions.create(
-					{
-						model: config.model || 'qwen-coder-turbo',
-						temperature: config.temperature,
-						max_tokens: config.maxTokens || 1024,
-						prompt: fullPrompt
-					},
-					{ signal }
-				);
-				result = response.choices.map((choice) => choice.text || '');
-				break;
-			}
-			default:
-				throw new Error(`不支持的AI模型类型: ${config.type}`);
-		}
-
-		const costs = Date.now() - start;
-		console.log(`[${requestId}] AI代码生成完成[${costs}ms]`);
-
-		// 清理取消事件监听器
-		if (disposable) {
-			disposable.dispose();
-		}
+		const result = await callAIService(scenario, context, config, requestId, token);
 
 		if (!result.length) return null;
 
@@ -879,9 +666,6 @@ ${prompt}
 		return generatedCode.trim();
 	} catch (error: any) {
 		console.error('AI代码生成失败:', error);
-		if (disposable) {
-			disposable.dispose();
-		}
 		if (typeof error === 'object' && error.toString().includes('Abort')) {
 			console.log('代码生成请求已取消');
 		}
@@ -889,10 +673,12 @@ ${prompt}
 	}
 };
 
+/**
+ * 获取AI补全建议
+ */
 export const getAICompletions = async (
-	languageId: string,
-	code: string,
-	offset: number,
+	scenario: PromptScenario,
+	context: PromptContext,
 	token?: CancellationToken
 ): Promise<languages.InlineCompletion[]> => {
 	const configManager = getAICompletionConfigManager();
@@ -910,67 +696,13 @@ export const getAICompletions = async (
 	}
 
 	// 生成缓存键
-	// 提取光标位置上下文 - 智能提取当前代码块的内容
-	const extractContext = () => {
-		// 找到光标所在的代码块
-		const lines = code.split('\n');
-		let lineIndex = 0;
-		let currentPos = 0;
-
-		// 找到光标所在行
-		for (let i = 0; i < lines.length; i++) {
-			const lineLength = lines[i].length + 1; // +1 是换行符
-			if (currentPos + lineLength > offset) {
-				lineIndex = i;
-				break;
-			}
-			currentPos += lineLength;
-		}
-
-		// 提取光标所在的代码块 (前后最多10行)
-		const startLine = Math.max(0, lineIndex - 10);
-		const endLine = Math.min(lines.length - 1, lineIndex + 10);
-		const relevantLines = lines.slice(startLine, endLine + 1);
-
-		// 在代码块中找到语义相关的部分（如函数、SQL语句块等）
-		const contextBlock = relevantLines.join('\n');
-
-		// 如果代码块太大，只保留光标前后各200个字符
-		if (contextBlock.length > 400) {
-			const cursorPosInBlock = offset - currentPos + lines[lineIndex].length;
-			const blockStart = Math.max(0, cursorPosInBlock - 200);
-			const blockEnd = Math.min(contextBlock.length, cursorPosInBlock + 200);
-			return contextBlock.substring(blockStart, blockEnd);
-		}
-
-		return contextBlock;
-	};
-
-	const codeContext = extractContext();
-
-	// 通过只保留关键信息来生成更通用的缓存键
-	// 1. 删除多余空格
-	const normalizedContext = codeContext.replace(/\s+/g, ' ').trim();
-	// 2. 使用上下文哈希作为键的一部分
-	const contextHash = hashString(normalizedContext);
-	const cacheKey = `${languageId}:${contextHash}`;
-
-	// 辅助函数：简单的字符串哈希算法
-	function hashString(str: string): string {
-		let hash = 0;
-		for (let i = 0; i < str.length; i++) {
-			const char = str.charCodeAt(i);
-			hash = (hash << 5) - hash + char;
-			hash = hash & hash; // Convert to 32bit integer
-		}
-		return hash.toString(16);
-	}
+	const cacheKey = generateCacheKey(scenario, context);
 
 	// 检查缓存
 	const cachedResult = configManager.getCachedResult(cacheKey);
 	if (cachedResult) {
-		//	console.log('使用缓存的AI补全结果');
-		//	return cachedResult;
+		console.log(`使用缓存的AI补全结果`);
+		return cachedResult;
 	}
 
 	// 使用防抖处理请求
@@ -995,14 +727,14 @@ export const getAICompletions = async (
 			});
 
 			// 请求AI补全
-			const aiResponses = await callAIAPI(languageId, code, offset, config, requestId, token);
+			const aiResponses = await callAIService(scenario, context, config, requestId, token);
 
 			if (!aiResponses || aiResponses.length === 0) {
 				resolve([]);
 				return;
 			}
 
-			const completions: string[] = parseAICompletions(aiResponses as any);
+			const completions: string[] = parseAICompletions(aiResponses);
 
 			console.log(`[${requestId}] 解析后的补全建议:`, completions);
 
@@ -1018,7 +750,6 @@ export const getAICompletions = async (
 			// 缓存结果
 			configManager.cacheResult(cacheKey, completionItems);
 
-			// 清理取消事件监听器
 			if (disposable) {
 				disposable.dispose();
 			}
@@ -1026,10 +757,303 @@ export const getAICompletions = async (
 			resolve(completionItems);
 		};
 
-		// 应用防抖，等待用户停止输入一段时间后才发送请求
 		const debounced = configManager.debounce(sendRequest);
 		if (!debounced) {
 			resolve([]);
 		}
 	});
+};
+
+/**
+ * 生成缓存键
+ */
+const generateCacheKey = (scenario: PromptScenario, context: PromptContext): string => {
+	// 提取关键信息用于缓存
+	const keyComponents = [
+		scenario,
+		context.languageId,
+		hashString(context.prefix || ''),
+		hashString(context.suffix || ''),
+		hashString(context.userPrompt || ''),
+		hashString(context.selectedCode || '')
+	];
+
+	return keyComponents.join(':');
+};
+
+/**
+ * 简单的字符串哈希算法
+ */
+const hashString = (str: string): string => {
+	let hash = 0;
+	for (let i = 0; i < str.length; i++) {
+		const char = str.charCodeAt(i);
+		hash = (hash << 5) - hash + char;
+		hash = hash & hash; // Convert to 32bit integer
+	}
+	return hash.toString(16);
+};
+
+/**
+ * 获取位置信息
+ * @param offset 偏移量
+ * @param code 代码
+ * @returns 位置信息
+ */
+export const getPositionAtOffset = (offset: number, code: string) => {
+	const prefix = code.substring(0, offset);
+	const lines = prefix.split('\n');
+	const currentLine = lines.length;
+	// 计算光标在当前行的列位置
+	const cursorPositionInLine = lines[lines.length - 1].length + 1;
+	return {
+		line: currentLine,
+		column: cursorPositionInLine
+	};
+};
+
+/**
+ * 创建提示词上下文的便捷函数
+ * @param languageId 语言ID
+ * @param code 完整代码
+ * @param offset 光标位置
+ * @param additionalContext 额外上下文
+ * @returns 提示词上下文
+ */
+export const createPromptContext = (
+	languageId: string,
+	code: string,
+	offset: number,
+	additionalContext?: Partial<PromptContext>
+): PromptContext => {
+	const prefix = code.substring(0, offset);
+	const suffix = code.substring(offset);
+
+	return {
+		languageId,
+		prefix,
+		suffix,
+		fullCode: code,
+		...additionalContext
+	};
+};
+
+/**
+ * 根据错误信息自动修复代码
+ * @param languageId 语言ID
+ * @param errorCode 有错误的代码
+ * @param errorMessage 错误信息
+ * @param token 取消令牌
+ * @returns 修复后的代码
+ */
+export const autoFixCode = async (
+	languageId: string,
+	errorCode: string,
+	errorMessage: string,
+	token?: CancellationToken
+): Promise<string | null> => {
+	const context: PromptContext = {
+		languageId,
+		selectedCode: errorCode,
+		errorMessage: errorMessage,
+		fullCode: errorCode
+	};
+
+	return generateCodeWithAI(PromptScenario.ERROR_FIXING, context, token);
+};
+
+/**
+ * 代码优化
+ * @param languageId 语言ID
+ * @param code 要优化的代码
+ * @param optimizationGoal 优化目标
+ * @param token 取消令牌
+ * @returns 优化后的代码
+ */
+export const optimizeCode = async (
+	languageId: string,
+	code: string,
+	optimizationGoal?: string,
+	token?: CancellationToken
+): Promise<string | null> => {
+	const context: PromptContext = {
+		languageId,
+		selectedCode: code,
+		userPrompt: optimizationGoal,
+		fullCode: code
+	};
+
+	return generateCodeWithAI(PromptScenario.CODE_OPTIMIZATION, context, token);
+};
+
+/**
+ * 代码解释
+ * @param languageId 语言ID
+ * @param code 要解释的代码
+ * @param focusArea 重点关注的领域
+ * @param token 取消令牌
+ * @returns 代码解释
+ */
+export const explainCode = async (
+	languageId: string,
+	code: string,
+	focusArea?: string,
+	token?: CancellationToken
+): Promise<string | null> => {
+	const context: PromptContext = {
+		languageId,
+		selectedCode: code,
+		userPrompt: focusArea,
+		fullCode: code
+	};
+
+	return generateCodeWithAI(PromptScenario.CODE_EXPLANATION, context, token);
+};
+
+/**
+ * 预设的场景API配置模板
+ */
+export const SCENARIO_API_PRESETS = {
+	/**
+	 * DeepSeek预设配置
+	 */
+	DEEPSEEK_PRESET: {
+		[PromptScenario.SYNTAX_COMPLETION]: {
+			model: 'deepseek-coder',
+			temperature: 0.2,
+			maxTokens: 256,
+			useChatMode: false
+		},
+		[PromptScenario.CODE_GENERATION]: {
+			model: 'deepseek-coder',
+			temperature: 0.3,
+			maxTokens: 1024,
+			useChatMode: true
+		},
+		[PromptScenario.CODE_EXPLANATION]: {
+			model: 'deepseek-coder',
+			temperature: 0.4,
+			maxTokens: 1024,
+			useChatMode: true
+		},
+		[PromptScenario.CODE_OPTIMIZATION]: {
+			model: 'deepseek-coder',
+			temperature: 0.3,
+			maxTokens: 1024,
+			useChatMode: true
+		},
+		[PromptScenario.ERROR_FIXING]: {
+			model: 'deepseek-coder',
+			temperature: 0.2,
+			maxTokens: 1024,
+			useChatMode: true
+		}
+	} as Partial<Record<PromptScenario, ScenarioAPIConfig>>,
+
+	/**
+	 * 通义千问预设配置
+	 */
+	QWEN_PRESET: {
+		[PromptScenario.SYNTAX_COMPLETION]: {
+			model: 'qwen-coder-turbo',
+			temperature: 0.2,
+			maxTokens: 256,
+			useChatMode: false
+		},
+		[PromptScenario.CODE_GENERATION]: {
+			model: 'qwen-coder-turbo',
+			temperature: 0.3,
+			maxTokens: 1024,
+			useChatMode: true
+		},
+		[PromptScenario.CODE_EXPLANATION]: {
+			model: 'qwen-coder-turbo',
+			temperature: 0.4,
+			maxTokens: 1024,
+			useChatMode: true
+		},
+		[PromptScenario.CODE_OPTIMIZATION]: {
+			model: 'qwen-coder-turbo',
+			temperature: 0.3,
+			maxTokens: 1024,
+			useChatMode: true
+		},
+		[PromptScenario.ERROR_FIXING]: {
+			model: 'qwen-coder-turbo',
+			temperature: 0.2,
+			maxTokens: 1024,
+			useChatMode: true
+		}
+	} as Partial<Record<PromptScenario, ScenarioAPIConfig>>
+};
+
+// 重新导出提示词系统相关内容
+export { PromptScenario, getPromptSystemManager } from './promptSystem';
+
+export type { PromptContext, PromptTemplate, SQLLanguageVariables } from './promptSystem';
+
+/**
+ * 流式生成代码的回调函数类型
+ */
+export interface StreamingCodeCallback {
+	onProgress: (partialCode: string, isComplete: boolean) => void;
+	onError?: (error: Error) => void;
+}
+
+/**
+ * 使用流式生成代码（模拟流式效果）
+ * @param scenario 场景类型
+ * @param context 提示词上下文
+ * @param callback 流式回调函数
+ * @param token 取消令牌
+ * @returns Promise<string | null> 最终生成的完整代码
+ */
+export const generateCodeWithAIStreaming = async (
+	scenario: PromptScenario,
+	context: PromptContext,
+	callback: StreamingCodeCallback,
+	token?: CancellationToken
+): Promise<string | null> => {
+	try {
+		// 先获取完整的生成结果
+		const fullCode = await generateCodeWithAI(scenario, context, token);
+
+		if (!fullCode) {
+			return null;
+		}
+
+		// 模拟流式输出 - 逐行处理
+		const lines = fullCode.split('\n');
+		let currentOutput = '';
+
+		for (let i = 0; i < lines.length; i++) {
+			if (token?.isCancellationRequested) {
+				console.log('请求被取消');
+				break;
+			}
+
+			// 添加当前行到输出
+			if (i > 0) {
+				currentOutput += '\n';
+			}
+			currentOutput += lines[i];
+
+			// 每输出一行都触发回调
+			const isComplete = i === lines.length - 1;
+			callback.onProgress(currentOutput, isComplete);
+
+			// 添加延迟模拟真实的流式效果
+			if (!isComplete) {
+				await new Promise((resolve) => setTimeout(resolve, 100));
+			}
+		}
+
+		return fullCode;
+	} catch (error) {
+		console.error('流式代码生成失败:', error);
+		if (callback.onError) {
+			callback.onError(error as Error);
+		}
+		return null;
+	}
 };

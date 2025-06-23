@@ -15,12 +15,15 @@
 		"@types/dagre": "^0.7.52",
 		"@xyflow/react": "^12.4.2",
 		"dagre": "^0.8.5",
+		"diff": "^8.0.2",
 		"monaco-editor": "0.31.0",
+		"rc-textarea": "^1.10.0",
 		"react": "^18.2.0",
 		"react-dom": "^18.2.0",
 		"reflect-metadata": "^0.1.13"
 	},
 	"devDependencies": {
+		"@types/diff": "^8.0.0",
 		"@types/node": "^20.2.5",
 		"@types/react": "^18.0.37",
 		"@types/react-dom": "^18.0.11",

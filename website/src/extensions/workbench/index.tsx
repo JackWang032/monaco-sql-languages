@@ -12,7 +12,7 @@ export const defaultParseTreePanel = {
 
 export const defaultAICompletionPanel = {
 	id: 'AICompletionPanel',
-	name: 'AI 补全设置'
+	name: 'AI 设置'
 };
 
 export const ExtendsWorkbench: IExtension = {
@@ -55,18 +55,16 @@ export const ExtendsWorkbench: IExtension = {
 
 		molecule.panel.add(defaultParseTreePanel);
 
-		// 设置AuxiliaryBar配置
 		// 初始化AuxiliaryBar，使用tabs模式
 		molecule.auxiliaryBar.setMode('tabs');
 
 		// 添加AI补全设置选项卡
 		const aiCompletionTab = {
 			key: 'aiCompletion',
-			title: 'AI 补全设置'
+			title: 'AI设置'
 		};
 		molecule.auxiliaryBar.addAuxiliaryBar([aiCompletionTab]);
 
-		// 监听选项卡点击事件
 		molecule.auxiliaryBar.onTabClick(() => {
 			const tab = molecule.auxiliaryBar.getCurrentTab();
 			if (tab && tab.key === aiCompletionTab.key) {
