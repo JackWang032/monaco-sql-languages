@@ -12,62 +12,62 @@ importers:
         specifier: file:dt-sql-parser-4.1.0-beta.0.tgz
         version: file:dt-sql-parser-4.1.0-beta.0.tgz(antlr4ng-cli@1.0.7)
       openai:
-        specifier: ^4.104.0
+        specifier: ^4.86.1
         version: 4.104.0
     devDependencies:
       '@commitlint/cli':
-        specifier: ^17.8.1
+        specifier: ^17.7.2
         version: 17.8.1
       '@commitlint/config-conventional':
-        specifier: ^17.8.1
+        specifier: ^17.7.0
         version: 17.8.1
       '@commitlint/cz-commitlint':
-        specifier: ^17.8.1
+        specifier: ^17.7.2
         version: 17.8.1(commitizen@4.3.1(@types/node@20.19.1)(typescript@5.8.3))(inquirer@8.2.6)
       '@types/mocha':
-        specifier: ^9.1.1
+        specifier: ^9.1.0
         version: 9.1.1
       '@types/node':
-        specifier: ^20.19.1
+        specifier: ^20.4.0
         version: 20.19.1
       commitizen:
-        specifier: ^4.3.1
+        specifier: ^4.3.0
         version: 4.3.1(@types/node@20.19.1)(typescript@5.8.3)
       fast-glob:
-        specifier: ^3.3.3
+        specifier: ^3.3.2
         version: 3.3.3
       gh-pages:
         specifier: ^3.2.3
         version: 3.2.3
       inquirer:
-        specifier: ^8.2.6
+        specifier: ^8.2.2
         version: 8.2.6
       jsdom:
-        specifier: ^16.7.0
+        specifier: ^16.4.0
         version: 16.7.0
       mocha:
-        specifier: ^9.2.2
+        specifier: ^9.2.0
         version: 9.2.2
       monaco-editor:
         specifier: 0.31.0
         version: 0.31.0
       prettier:
-        specifier: ^3.5.3
+        specifier: ^3.3.3
         version: 3.5.3
       pretty-quick:
-        specifier: ^4.2.2
+        specifier: ^4.0.0
         version: 4.2.2(prettier@3.5.3)
       requirejs:
-        specifier: ^2.3.7
+        specifier: ^2.3.6
         version: 2.3.7
       simple-git-hooks:
-        specifier: ^2.13.0
+        specifier: ^2.11.1
         version: 2.13.0
       standard-version:
         specifier: ^9.5.0
         version: 9.5.0
       typescript:
-        specifier: ^5.8.3
+        specifier: ^5.0.4
         version: 5.8.3
 
 packages:
