@@ -292,10 +292,11 @@ export const language = <languages.IMonarchLanguage>{
 		'EXP',
 		'CEIL',
 		'CEILING',
-		'FLOOR',
 		'SIN',
 		'SINH',
+		'SQRT',
 		'COS',
+		'MOD',
 		'TAN',
 		'TANH',
 		'COT',
@@ -335,6 +336,7 @@ export const language = <languages.IMonarchLanguage>{
 		'CONCAT',
 		'CONCAT_WS',
 		'LPAD',
+		'RIGHT',
 		'RPAD',
 		'FROM_BASE64',
 		'TO_BASE64',
@@ -343,6 +345,7 @@ export const language = <languages.IMonarchLanguage>{
 		'DECODE',
 		'ENCODE',
 		'INSTR',
+		'LEFT',
 		'LOCATE',
 		'PARSE_URL',
 		'REGEXP',
@@ -375,15 +378,17 @@ export const language = <languages.IMonarchLanguage>{
 		'TO_TIMESTAMP_LTZ',
 		'TO_TIMESTAMP',
 		'CURRENT_WATERMARK',
+		'OVERLAPS',
 		// Conditional Functions
 		'COALESCE',
+		'GREATEST',
 		'IF',
 		'IFNULL',
 		'IS_ALPHA',
 		'IS_DECIMAL',
 		'IS_DIGIT',
-		'GREATEST',
 		'LEAST',
+		'NULLIF',
 		// Type Conversion Functions
 		'CAST',
 		'TRY_CAST',
@@ -391,7 +396,12 @@ export const language = <languages.IMonarchLanguage>{
 		// Collection Functions
 		'CARDINALITY',
 		'ELEMENT',
+		'ARRAY',
+		'MAP',
 		'ARRAY_CONTAINS',
+		// comparison function
+		'EXISTS',
+		'IN',
 		// JSON Functions
 		'JSON_EXISTS',
 		'JSON_STRING',
@@ -404,14 +414,15 @@ export const language = <languages.IMonarchLanguage>{
 		// Grouping Functions
 		'GROUP_ID',
 		'GROUPING',
+		'GROUPING_ID',
 		// Hash Functions
 		'MD5',
 		'SHA1',
+		'SHA2',
 		'SHA224',
 		'SHA256',
 		'SHA384',
 		'SHA512',
-		'SHA2',
 		// Aggregate Functions
 		'COUNT',
 		'AVG',
@@ -459,7 +470,6 @@ export const language = <languages.IMonarchLanguage>{
 		'TIME',
 		'TIMESTAMP',
 		'TIMESTAMP_LTZ',
-		'INTERVAL',
 		'ARRAY',
 		'MULTISET',
 		'MAP',
@@ -467,6 +477,7 @@ export const language = <languages.IMonarchLanguage>{
 		'RAW',
 		'DEC',
 		'NUMERIC',
+		'INT',
 		'INTERVAL'
 	],
 	scopeKeywords: ['CASE', 'END', 'WHEN', 'THEN', 'ELSE'],
@@ -478,12 +489,14 @@ export const language = <languages.IMonarchLanguage>{
 			{ include: '@comments' },
 			{ include: '@whitespace' },
 			{ include: '@pseudoColumns' },
+			{ include: '@customParams' },
 			{ include: '@numbers' },
 			{ include: '@strings' },
 			{ include: '@complexIdentifiers' },
 			{ include: '@scopes' },
 			{ include: '@complexDataTypes' },
-			[/[;,.]/, TokenClassConsts.DELIMITER],
+			{ include: '@complexFunctions' },
+			[/[:;,.]/, TokenClassConsts.DELIMITER],
 			[/[\(\)\[\]\{\}]/, '@brackets'],
 			[
 				/[\w@#$]+/,
@@ -523,6 +536,10 @@ export const language = <languages.IMonarchLanguage>{
 				}
 			]
 		],
+		customParams: [
+			[/\${[A-Za-z0-9._-]*}/, TokenClassConsts.VARIABLE],
+			[/\@\@{[A-Za-z0-9._-]*}/, TokenClassConsts.VARIABLE]
+		],
 		numbers: [
 			[/0[xX][0-9a-fA-F]*/, TokenClassConsts.NUMBER_HEX],
 			[/[$][+-]*\d*(\.\d*)?/, TokenClassConsts.NUMBER],
@@ -550,6 +567,10 @@ export const language = <languages.IMonarchLanguage>{
 			[/DOUBLE\s+PRECISION\b/i, { token: TokenClassConsts.TYPE }],
 			[/WITHOUT\s+TIME\s+ZONE\b/i, { token: TokenClassConsts.TYPE }],
 			[/WITH\s+LOCAL\s+TIME\s+ZONE\b/i, { token: TokenClassConsts.TYPE }]
+		],
+		complexFunctions: [
+			[/NOT\s+IN\b/i, { token: TokenClassConsts.PREDEFINED }],
+			[/IS\s+JSON\b/i, { token: TokenClassConsts.PREDEFINED }]
 		]
 	}
 };
