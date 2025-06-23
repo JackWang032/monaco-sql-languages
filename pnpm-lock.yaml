@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       dt-sql-parser:
-        specifier: file:dt-sql-parser-4.1.0-beta.0.tgz
-        version: file:dt-sql-parser-4.1.0-beta.0.tgz(antlr4ng-cli@1.0.7)
+        specifier: file:dt-sql-parser-4.2.0.tgz
+        version: file:dt-sql-parser-4.2.0.tgz(antlr4ng-cli@1.0.7)
       openai:
         specifier: ^4.86.1
         version: 4.104.0
@@ -325,7 +325,6 @@ packages:
 
   antlr4ng-cli@1.0.7:
     resolution: {integrity: sha512-qN2FsDBmLvsQcA5CWTrPz8I8gNXeS1fgXBBhI78VyxBSBV/EJgqy8ks6IDTC9jyugpl40csCQ4sL5K4i2YZ/2w==}
-    deprecated: 'This package is deprecated and will no longer be updated. Please use the new antlr-ng package instead: https://github.com/mike-lischke/antlr-ng'
     hasBin: true
 
   antlr4ng@2.0.11:
@@ -736,9 +735,9 @@ packages:
     resolution: {integrity: sha512-sCm11ak2oY6DglEPpCB8TixLjWAxd3kJTs6UIcSasNYxXdFPV+YKlye92c8H4kKFqV5qYMIh7d+cYecEg0dIkA==}
     engines: {node: '>=6'}
 
-  dt-sql-parser@file:dt-sql-parser-4.1.0-beta.0.tgz:
-    resolution: {integrity: sha512-GbHWHbo+3F4zERdgt80O2AWTVTpST8FD5xPo/hAf6SzcWDenErKz5Qzp8heu2knDv2eiiMu10AbdlatCGRmKhA==, tarball: file:dt-sql-parser-4.1.0-beta.0.tgz}
-    version: 4.1.0-beta.0
+  dt-sql-parser@file:dt-sql-parser-4.2.0.tgz:
+    resolution: {integrity: sha512-ESrhYWFgITiSF/UFfQxLiNXEU89x4fjhbm0OJ6JErnXbct9wD84qKemRYVxyXY5vPXp3UpeEwdCXoWhtVUYdVA==, tarball: file:dt-sql-parser-4.2.0.tgz}
+    version: 4.2.0
     engines: {node: '>=18'}
 
   dunder-proto@1.0.1:
@@ -2858,7 +2857,7 @@ snapshots:
       find-up: 3.0.0
       minimatch: 3.1.2
 
-  dt-sql-parser@file:dt-sql-parser-4.1.0-beta.0.tgz(antlr4ng-cli@1.0.7):
+  dt-sql-parser@file:dt-sql-parser-4.2.0.tgz(antlr4ng-cli@1.0.7):
     dependencies:
       antlr4-c3: 3.3.7(antlr4ng-cli@1.0.7)
       antlr4ng: 2.0.11(antlr4ng-cli@1.0.7)

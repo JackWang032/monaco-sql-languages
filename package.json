@@ -67,7 +67,7 @@
 		"pre-commit": "npx pretty-quick --staged"
 	},
 	"dependencies": {
-		"dt-sql-parser": "file:dt-sql-parser-4.1.0-beta.0.tgz",
+		"dt-sql-parser": "file:dt-sql-parser-4.2.0.tgz",
 		"openai": "^4.86.1"
 	},
 	"peerDependencies": {
