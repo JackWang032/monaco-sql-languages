@@ -1,11 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import {
-	AIModelConfig,
-	AIModelType,
-	getAICompletionConfigManager
-} from '../../languages/helpers/aiCompletionService';
+import { getAICompletionConfigManager } from '../../ai/config';
+import { AIModelConfig, AIModelType } from '../../ai/types';
 
-// 简单的样式定义
 const styles = {
 	container: {
 		padding: '16px',
@@ -200,7 +196,6 @@ const AICompletionPanel: React.FC = () => {
 		setTestMessage('正在测试连接...');
 
 		try {
-			// 根据不同的模型类型构建测试请求
 			let result = '';
 			if (modelType === AIModelType.DEEPSEEK) {
 				const apiUrl = endpoint || 'https://api.deepseek.com/beta/completions';

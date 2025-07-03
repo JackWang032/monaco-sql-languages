@@ -6,7 +6,7 @@ import { ExtendsWorkbench } from './extensions/workbench';
 import { version, dependencies } from '../../package.json';
 import { editor } from 'monaco-editor/esm/vs/editor/editor.api';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import { registerCodeGenerationKeyBinding } from './languages/helpers/aiCompletionService';
+import { registerCodeGenerationKeyBinding } from './ai/keyBinding';
 
 import './languages';
 
@@ -40,7 +40,7 @@ editor.onDidCreateEditor((editorInstance) => {
 				// 空函数，禁用原生功能
 			});
 
-			// 注册我们自定义的代码生成快捷键
+			// 注册自定义快捷键
 			registerCodeGenerationKeyBinding(standaloneEditor);
 			console.log('AI代码生成快捷键注册成功，原生Command+K已禁用');
 		}

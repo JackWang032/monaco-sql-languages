@@ -4,11 +4,9 @@ import './theme';
 import { setupLanguageFeatures, LanguageIdEnum } from 'monaco-sql-languages/esm/main.js';
 import { completionService } from './helpers/completionService';
 import { languages } from 'monaco-editor/esm/vs/editor/editor.api';
-import {
-	getAICompletions,
-	getAICompletionConfigManager,
-	PromptScenario
-} from './helpers/aiCompletionService';
+import { getAICompletions } from '../ai/aiService';
+import { getAICompletionConfigManager } from '../ai/config';
+import { PromptScenario } from '../ai/promptSystem';
 
 // 初始化AI补全配置 - 确保在应用启动时就加载配置
 (() => {
@@ -155,7 +153,6 @@ const registerInlineCompletionsForLanguage = (languageId: string) => {
 			lastPosition = { ...position };
 
 			// 获取AI配置管理器实例
-			const { getAICompletionConfigManager } = await import('./helpers/aiCompletionService');
 			const configManager = getAICompletionConfigManager();
 
 			// 检查AI补全是否启用

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { DiffLine } from './codeGenerationWidget';
+import { DiffLine } from './types';
 import { createRoot } from 'react-dom/client';
 import { editor } from 'monaco-editor/esm/vs/editor/editor.api';
 

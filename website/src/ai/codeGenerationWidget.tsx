@@ -1,29 +1,13 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import {
-	generateCodeWithAI,
-	generateCodeWithAIStreaming,
-	StreamingCodeCallback
-} from '../../languages/helpers/aiCompletionService';
-import { PromptScenario, PromptContext } from '../../languages/helpers/promptSystem';
+import { generateCodeWithAI, generateCodeWithAIStreaming } from './aiService';
+import { PromptScenario, PromptContext } from './promptSystem';
 
 import { editor, Position, Range } from 'monaco-editor/esm/vs/editor/editor.api';
 import TextArea from 'rc-textarea';
 import { calculateDiff } from './utils';
 import { createDeletedLinesViewZone } from './deletedLineViewZone';
-
-export enum DiffLineType {
-	UNCHANGED = 'unchanged',
-	ADDED = 'added',
-	DELETED = 'deleted'
-}
-
-export interface DiffLine {
-	type: DiffLineType;
-	originalLineNumber?: number; // 原始行号
-	newLineNumber?: number; // 新行号
-	content: string; // 行内容
-}
+import { DiffLine, DiffLineType, StreamingCodeCallback } from './types';
 
 interface CodeGenerationWidgetState {
 	prompt: string;
@@ -39,7 +23,7 @@ interface CodeGenerationWidgetState {
 }
 
 /**
- * 代码生成Widget组件
+ * 行内生成Widget组件
  */
 const CodeGenerationWidget: React.FC<CodeGenerationWidgetProps> = ({
 	editorInstance,
@@ -797,7 +781,6 @@ export const createCodeGenerationOverlayWidget = (
 			domNode.parentNode.removeChild(domNode);
 		}
 
-		// 调用外部传入的dispose回调
 		if (onDispose) {
 			onDispose();
 		}

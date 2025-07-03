@@ -339,19 +339,12 @@ export class PromptSystemManager {
 	 * 清理模板中的空白内容
 	 */
 	private cleanEmptyContent(template: string): string {
-		// 移除空的参考代码块
 		template = template.replace(/参考代码：\s*```sql\s*```/g, '');
-		// 移除空的特别关注行
 		template = template.replace(/特别关注：\s*$/gm, '');
-		// 移除空的优化需求行
 		template = template.replace(/优化需求：\s*$/gm, '');
-		// 移除空的错误信息行
 		template = template.replace(/错误信息：\s*$/gm, '');
-		// 移除空的补充说明行
 		template = template.replace(/补充说明：\s*$/gm, '');
-		// 移除空的转换要求行
 		template = template.replace(/转换要求：\s*$/gm, '');
-		// 移除空的相关代码块
 		template = template.replace(/相关代码：\s*```sql\s*```/g, '');
 		// 移除多余的空行
 		template = template.replace(/\n\s*\n\s*\n/g, '\n\n');
