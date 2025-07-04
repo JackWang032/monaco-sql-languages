@@ -1,17 +1,15 @@
-import { PromptScenario, PromptContext } from './promptSystem';
+import { PromptContext } from './promptSystem';
 import { DiffLine, DiffLineType } from './types';
 import { diffLines } from 'diff';
 
 /**
  * 生成缓存键
- * @param scenario 场景类型
  * @param context 提示词上下文
  * @returns 缓存键
  */
-export const generateCacheKey = (scenario: PromptScenario, context: PromptContext): string => {
+export const generateCacheKey = (context: PromptContext): string => {
 	// 提取关键信息用于缓存
 	const keyComponents = [
-		scenario,
 		context.languageId,
 		hashString(context.prefix || ''),
 		hashString(context.suffix || ''),

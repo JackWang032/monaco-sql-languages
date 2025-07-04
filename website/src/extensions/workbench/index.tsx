@@ -3,7 +3,7 @@ import { Float } from '@dtinsight/molecule/esm/model';
 import { IExtension } from '@dtinsight/molecule/esm/model/extension';
 import Sidebar from './sidebar';
 import { defaultEditorTab, defaultLanguageStatusItem } from './common';
-import AICompletionPanel from './aiCompletionPanel';
+import AISettingPanel from './aiSettingPanel';
 
 export const defaultParseTreePanel = {
 	id: 'ParseTreePanel',
@@ -69,7 +69,7 @@ export const ExtendsWorkbench: IExtension = {
 			const tab = molecule.auxiliaryBar.getCurrentTab();
 			if (tab && tab.key === aiCompletionTab.key) {
 				// 设置AuxiliaryBar内容
-				molecule.auxiliaryBar.setChildren(<AICompletionPanel />);
+				molecule.auxiliaryBar.setChildren(<AISettingPanel />);
 			}
 
 			molecule.layout.setAuxiliaryBar(!tab);

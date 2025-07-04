@@ -1,5 +1,4 @@
 import { IRange } from 'monaco-editor/esm/vs/editor/editor.api';
-import { PromptScenario } from './promptSystem';
 
 /**
  * AI模型服务
@@ -10,36 +9,13 @@ export enum AIModelType {
 }
 
 /**
- * AI场景特定的API配置
- */
-export interface ScenarioAPIConfig {
-	/** 端点URL */
-	endpoint?: string;
-	/** 模型名称 */
-	model?: string;
-	/** 温度参数 */
-	temperature?: number;
-	/** 最大token数 */
-	maxTokens?: number;
-	/** 是否使用聊天模式 */
-	useChatMode?: boolean;
-}
-
-/**
  * AI模型配置
  */
 export interface AIModelConfig {
 	type: AIModelType;
 	apiKey: string;
-	/** 默认配置 */
-	defaultConfig?: {
-		model?: string;
-		endpoint?: string;
-		temperature?: number;
-		maxTokens?: number;
-	};
-	/** 不同场景的特定配置 */
-	scenarioConfigs?: Partial<Record<PromptScenario, ScenarioAPIConfig>>;
+	model: string;
+	endpoint: string;
 }
 
 /**
@@ -66,16 +42,6 @@ export interface CodeGenerationWidgetState {
 export interface StreamingCodeCallback {
 	onProgress: (partialCode: string, isComplete: boolean) => void;
 	onError?: (error: Error) => void;
-}
-
-/**
- * 模型参数
- */
-export interface ModelParams {
-	temperature: number;
-	maxTokens: number;
-	model: string;
-	useChatMode: boolean;
 }
 
 /**

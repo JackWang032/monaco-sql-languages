@@ -56,8 +56,6 @@ export interface PromptTemplate {
 	userPromptTemplate: string;
 	/** 温度参数 */
 	temperature?: number;
-	/** 最大token数 */
-	maxTokens?: number;
 }
 
 /**
@@ -134,8 +132,7 @@ export const PROMPT_TEMPLATES: Record<PromptScenario, PromptTemplate> = {
 		systemPromptTemplate: ``,
 		// qwen 的补全格式
 		userPromptTemplate: `<|fim_prefix|>{prefix}<|fim_suffix|>{suffix}<|fim_middle|>`,
-		temperature: 0.2,
-		maxTokens: 256
+		temperature: 0.2
 	},
 
 	[PromptScenario.CODE_GENERATION]: {
@@ -163,8 +160,7 @@ export const PROMPT_TEMPLATES: Record<PromptScenario, PromptTemplate> = {
 \`\`\`
 
 请生成符合需求的{languageName}代码：`,
-		temperature: 0.3,
-		maxTokens: 512
+		temperature: 0.3
 	},
 
 	[PromptScenario.CODE_EXPLANATION]: {
@@ -192,8 +188,7 @@ export const PROMPT_TEMPLATES: Record<PromptScenario, PromptTemplate> = {
 特别关注：{userPrompt}
 
 请详细解释这段代码的功能和特点：`,
-		temperature: 0.4,
-		maxTokens: 1024
+		temperature: 0.4
 	},
 
 	[PromptScenario.CODE_OPTIMIZATION]: {
@@ -222,8 +217,7 @@ export const PROMPT_TEMPLATES: Record<PromptScenario, PromptTemplate> = {
 优化需求：{userPrompt}
 
 请提供优化分析和改进后的代码：`,
-		temperature: 0.3,
-		maxTokens: 1024
+		temperature: 0.3
 	},
 
 	[PromptScenario.ERROR_FIXING]: {
@@ -253,8 +247,7 @@ export const PROMPT_TEMPLATES: Record<PromptScenario, PromptTemplate> = {
 补充说明：{userPrompt}
 
 请诊断并修复这个错误：`,
-		temperature: 0.2,
-		maxTokens: 1024
+		temperature: 0.2
 	}
 };
 
@@ -290,7 +283,6 @@ export class PromptSystemManager {
 		systemPrompt: string;
 		userPrompt: string;
 		temperature?: number;
-		maxTokens?: number;
 	} {
 		const template = this.getTemplate(scenario);
 		const languageConfig = SQL_LANGUAGE_CONFIG[context.languageId] || {
@@ -330,8 +322,7 @@ export class PromptSystemManager {
 		return {
 			systemPrompt,
 			userPrompt,
-			temperature: template.temperature,
-			maxTokens: template.maxTokens
+			temperature: template.temperature
 		};
 	}
 

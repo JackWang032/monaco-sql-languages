@@ -2,8 +2,8 @@ import { CancellationToken, languages } from 'monaco-editor/esm/vs/editor/editor
 import { AIModelConfig, AIModelType, StreamingCodeCallback } from './types';
 import { PromptScenario, PromptContext, getPromptSystemManager } from './promptSystem';
 import { callDeepSeek, callQwen } from './apiClient';
-import { getAICompletionConfigManager } from './config';
-import { generateCacheKey, parseAICompletions, cleanGeneratedCode } from './utils';
+import { getAIConfigManager } from './config';
+import { parseAICompletions, cleanGeneratedCode } from './utils';
 
 // 全局变量用于取消请求
 let abortController: AbortController | null = null;
@@ -55,41 +55,28 @@ export const callAIService = async (
 
 		switch (config.type) {
 			case AIModelType.DEEPSEEK: {
-				if (scenario === PromptScenario.SYNTAX_COMPLETION) {
-					// 语法补全使用FIM模式
-					result = await callDeepSeek(
-						context.prefix || '',
-						context.suffix || '',
-						config,
-						scenario,
-						signal
-					);
-				} else {
-					result = await callDeepSeek(
-						processedPrompt.userPrompt,
-						'',
-						config,
-						scenario,
-						signal,
-						processedPrompt.systemPrompt
-					);
-				}
+				// 语法补全使用FIM模式
+				result = await callDeepSeek({
+					prompt: processedPrompt.userPrompt,
+					suffix: context.suffix || '',
+					prefix: context.prefix || '',
+					config,
+					scenario,
+					signal,
+					temperature: processedPrompt.temperature || 0.3
+				});
+
 				break;
 			}
 			case AIModelType.QWEN: {
-				if (scenario === PromptScenario.SYNTAX_COMPLETION) {
-					// 语法补全使用FIM模式
-					result = await callQwen(processedPrompt.userPrompt, config, scenario, signal);
-				} else {
-					// 其他场景使用Chat模式
-					result = await callQwen(
-						processedPrompt.userPrompt,
-						config,
-						scenario,
-						signal,
-						processedPrompt.systemPrompt
-					);
-				}
+				result = await callQwen({
+					prompt: processedPrompt.userPrompt,
+					systemPrompt: processedPrompt.systemPrompt,
+					config,
+					scenario,
+					signal,
+					temperature: processedPrompt.temperature || 0.3
+				});
 				break;
 			}
 			default:
@@ -119,7 +106,7 @@ export const generateCodeWithAI = async (
 	context: PromptContext,
 	token?: CancellationToken
 ): Promise<string | null> => {
-	const configManager = getAICompletionConfigManager();
+	const configManager = getAIConfigManager();
 
 	// 检查AI是否启用
 	if (!configManager.getEnabled()) {
@@ -171,7 +158,7 @@ export const getAICompletions = async (
 	context: PromptContext,
 	token?: CancellationToken
 ): Promise<languages.InlineCompletion[]> => {
-	const configManager = getAICompletionConfigManager();
+	const configManager = getAIConfigManager();
 
 	// 检查AI补全是否启用
 	if (!configManager.getEnabled()) {
@@ -183,16 +170,6 @@ export const getAICompletions = async (
 	if (!config || !config.apiKey) {
 		console.warn('AI补全未配置API Key');
 		return [];
-	}
-
-	// 生成缓存键
-	const cacheKey = generateCacheKey(scenario, context);
-
-	// 检查缓存
-	const cachedResult = configManager.getCachedResult(cacheKey);
-	if (cachedResult) {
-		console.log(`使用缓存的AI补全结果`);
-		return cachedResult;
 	}
 
 	// 使用防抖处理请求
@@ -237,9 +214,6 @@ export const getAICompletions = async (
 				text: completion
 			}));
 
-			// 缓存结果
-			configManager.cacheResult(cacheKey, completionItems);
-
 			if (disposable) {
 				disposable.dispose();
 			}
@@ -247,10 +221,7 @@ export const getAICompletions = async (
 			resolve(completionItems);
 		};
 
-		const debounced = configManager.debounce(sendRequest);
-		if (!debounced) {
-			resolve([]);
-		}
+		sendRequest();
 	});
 };
 
