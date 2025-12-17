@@ -1,18 +1,20 @@
 import { IContributeType, IExtension, IMenuItemProps, UniqueId } from '@dtinsight/molecule';
-import SaveFileAction from './ saveAction';
+import SaveFileAction from './saveAction';
 import ToggleThemeAction from './toggleTheme';
+import AICodeGenerationAction from './aiCodeGenerationAction';
 import { concatMenu } from '@dtinsight/molecule/esm/utils';
 
 export const ExtendsActions: IExtension = {
 	id: 'ExtendsActions',
 	name: 'Extend Actions',
 	contributes: {
-		[IContributeType.Commands]: [SaveFileAction, ToggleThemeAction]
+		[IContributeType.Commands]: [SaveFileAction, ToggleThemeAction, AICodeGenerationAction]
 	},
 	activate: function (molecule): void {
 		appendActionGroupBy(molecule.builtin.getConstants().MENUBAR_ITEM_EDIT)
 			.with(SaveFileAction)
 			.with(ToggleThemeAction)
+			.with(AICodeGenerationAction)
 			.exhaust();
 
 		function appendActionGroupBy(parentId: UniqueId) {

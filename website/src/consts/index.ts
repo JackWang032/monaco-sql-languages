@@ -10,6 +10,8 @@ export const ACTIVITY_SQL = 'activity.sql';
 
 export const ACTIVITY_API = 'activity.api';
 
+export const ACTIVITY_AI = 'activity.ai';
+
 export const SOURCE_FILE = 'activity.source.file';
 
 export const SOURCE_OUTLINE = 'activity.source.outline';
